@@ -1,5 +1,15 @@
 # MentorPi Sim-to-Real Navigation
 
+**Watch MentorPi turn a local map into motion—and reach its goal.**
+
+[![MentorPi navigating a seven-obstacle scene to its goal, with its live occupancy map and movement trail](docs/media/mentorpi_goal_demo.gif)](docs/media/mentorpi_goal_demo.mp4)
+
+[Watch the full-resolution video](docs/media/mentorpi_goal_demo.mp4)
+
+The saved neural policy drives the MentorPi through a **seven-obstacle simulation scene**. The cyan trail traces its route, while the side panel shows the live **100 × 100 robot-relative occupancy grid**, remaining goal distance, and simulated time. Each control step reads the map and robot state, infers a motion command, and advances the robot toward the green goal.
+
+The robot reaches the task's **0.15 m arrival threshold after 14.15 simulated seconds**; playback runs at **2× speed**. This is a selected successful rollout (seed 789) using the saved `mentorpi_navigation_best` checkpoint. The scene is rendered in Isaac Sim with the project's analytic planar navigation dynamics; wheel contact physics and camera perception are not simulated in this demo. Aggregate evaluation results are reported below.
+
 Learning-based goal reaching and obstacle avoidance for the Hiwonder MentorPi M1, with Isaac Lab training and a ROS2 deployment stack for Raspberry Pi 5.
 
 ## What this project does
@@ -34,7 +44,7 @@ See [benchmark results](RESULTS.md) and [historical experiment counts](navigatio
 
 ## Setup and usage
 
-This is a research workspace, not a standalone packaged application. Training uses the Isaac Lab 3 / Newton API installed for the original experiments, along with PyTorch, TensorDict, and RSL-RL. ROS2 Humble and the robot's vendor drivers are needed onboard. The robot mesh/USD assets, simulator installation, trained checkpoints, maps, recordings, credentials, and generated logs are not included.
+This is a research workspace, not a standalone packaged application. Training uses the Isaac Lab 3 / Newton API installed for the original experiments, along with PyTorch, TensorDict, and RSL-RL. ROS2 Humble and the robot's vendor drivers are needed onboard. The robot mesh/USD assets, simulator installation, trained checkpoints, maps, robot recordings, credentials, and generated logs are not included.
 
 Use your Isaac Lab Python environment. Copy `local_paths.example.json` to `local_paths.json` and set your local paths if using robot visuals. The USD asset is optional for headless training. PowerShell wrappers accept a local Isaac Lab root; Python entry points can also be called directly.
 
