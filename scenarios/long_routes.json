@@ -1,0 +1,9 @@
+{
+  "obstacle_count": 6,
+  "min_obstacles": 4,
+  "obstacle_radius_range": [0.15, 0.30],
+  "layout_mode": "random",
+  "grid_resolution": 0.1,
+  "planning_margin": 0.02,
+  "min_goal_distance": 2.8
+}

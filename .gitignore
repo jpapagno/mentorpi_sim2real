@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+logs/
+outputs/
+.venv/
+.local/
+local_paths.json
+.env
+.env.*
+*.pem
+*.key

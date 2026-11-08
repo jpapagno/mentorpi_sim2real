@@ -1,0 +1,9 @@
+{
+  "obstacle_count": 8,
+  "min_obstacles": null,
+  "obstacle_radius_range": null,
+  "layout_mode": "passage",
+  "grid_resolution": 0.1,
+  "planning_margin": 0.02,
+  "min_goal_distance": 1.5
+}

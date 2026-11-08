@@ -1,0 +1,12 @@
+{
+  "obstacle_count": 4,
+  "actuator_scale_range": null,
+  "action_delay_steps": 0,
+  "min_obstacles": null,
+  "obstacle_radius_range": null,
+  "layout_mode": "random",
+  "grid_resolution": 0.2,
+  "planning_margin": 0.04,
+  "min_goal_distance": 1.0,
+  "episode_seconds": 40.0
+}

@@ -1,0 +1,17 @@
+{
+  "max_obstacles": 24,
+  "obstacle_count": 24,
+  "min_obstacles": 10,
+  "layout_mode": "shapes",
+  "grid_resolution": 0.1,
+  "planning_margin": 0.02,
+  "min_goal_distance": 1.0,
+  "episode_seconds": 60.0,
+  "progress_reward_scale": 10.0,
+  "success_reward": 20.0,
+  "collision_penalty": 75.0,
+  "clearance_penalty": 0.1,
+  "clearance_distance": 0.2,
+  "actuator_scale_range": [0.6, 1.0],
+  "action_delay_steps": 2
+}

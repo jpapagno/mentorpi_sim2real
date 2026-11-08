@@ -1,0 +1,14 @@
+{
+  "obstacle_count": 8,
+  "min_obstacles": 2,
+  "obstacle_radius_range": [0.12, 0.32],
+  "layout_mode": "mixed",
+  "grid_resolution": 0.1,
+  "planning_margin": 0.02,
+  "min_goal_distance": 1.5,
+  "progress_reward_scale": 10.0,
+  "success_reward": 20.0,
+  "collision_penalty": 75.0,
+  "clearance_penalty": 0.1,
+  "clearance_distance": 0.2
+}
