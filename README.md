@@ -1,5 +1,20 @@
 # MentorPi Sim-to-Real Navigation
 
+## Real robot deployment
+
+Four runs on the physical MentorPi, with and without obstacles. All four reached their goals, as confirmed by the operator. Click a thumbnail to watch.
+
+| Trial | Video | Notes |
+| --- | --- | --- |
+| **1** | [![Watch trial 1](docs/media/deployment/trial-1.jpg)](docs/media/deployment/trial-1.mp4) | Goal reached with an obstacle present. |
+| **2** | [![Watch trial 2](docs/media/deployment/trial-2.jpg)](docs/media/deployment/trial-2.mp4) | A second goal-reaching run with an obstacle present. |
+| **3 — no obstacle** | [![Watch trial 3](docs/media/deployment/trial-3.jpg)](docs/media/deployment/trial-3.mp4) | Goal reached in open floor space. |
+| **4 — left obstacle** | [![Watch trial 4](docs/media/deployment/trial-4.jpg)](docs/media/deployment/trial-4.mp4) | Goal reached with the obstacle placed to the left. |
+
+The goal check uses position, so the robot can arrive sideways. [Original recordings](https://drive.google.com/drive/u/2/folders/1JmySzsq3vORMA3XOVML9RutgsC-31NRy).
+
+## Simulation demo
+
 **Watch MentorPi turn a local map into motion—and reach its goal.**
 
 [![MentorPi navigating a seven-obstacle scene to its goal, with its live occupancy map and movement trail](docs/media/mentorpi_goal_demo.gif)](docs/media/mentorpi_goal_demo.mp4)
