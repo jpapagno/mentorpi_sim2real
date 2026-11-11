@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mentorpi-nav"
 version = "0.1.0"
-description = "LiDAR-only robot navigation and Isaac Lab policy training prototype"
+description = "Sim-to-real robotics with Isaac Lab training and LiDAR-guided MentorPi control"
 requires-python = ">=3.10"
 
 [project.optional-dependencies]

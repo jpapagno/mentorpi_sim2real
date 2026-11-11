@@ -11,7 +11,7 @@ Selected residual CNN policy, initialized with demonstrations/DAgger and fine-tu
 | 2026 | 195 | 4 | 1 | 97.5% |
 | 2027 (additional) | 191 | 5 | 4 | 95.5% |
 
-The three requested seeds passed the empirical target of >90% success and <=2% collisions individually. The additional seed had 2.5% collisions. Expanded varied-count, passage, and long-route challenges reached 84%, 90%, and 86% success, with 7-11% collision rates. These results do not establish universal collision avoidance.
+The three primary seeds passed the empirical target of >90% success and <=2% collisions individually. The additional seed had 2.5% collisions. Expanded varied-count, passage, and long-route challenges reached 84%, 90%, and 86% success, with 7-11% collision rates. These results do not establish universal collision avoidance.
 
 ## Later deployment-oriented policy
 
@@ -29,6 +29,6 @@ Global-path results are distinct from direct-goal performance and physical deplo
 
 Raspberry Pi 5, TorchScript export of the later policy: maximum action difference approximately 1.20e-6 across 32 golden cases. Under the running stack, 300 inference calls gave p95 5.20 ms and maximum 7.19 ms.
 
-Live LiDAR/IMU streams, policy inference, wheel translation and turning have been checked. The README includes four operator-confirmed physical goal arrivals. No successful autonomous 30-goal hardware session has been completed; sensor noise, moving obstacles, and reliable general obstacle avoidance are not established by these simulation results.
+Live LiDAR/IMU streams, policy inference, wheel translation and turning have been checked. Four recorded runs have operator-confirmed goal arrivals; the README features Trial 1. No successful autonomous 30-goal hardware session has been completed; sensor noise, moving obstacles, and reliable general obstacle avoidance are not established by these simulation results.
 
-Counts are transcribed from local experiment records. Generated episode traces and checkpoints are excluded from this source publication. The included CSV records historical experiments; it does not include every later deployment experiment.
+Counts are transcribed from local experiment records. Generated episode traces and checkpoints are excluded from this source publication. The [historical experiment CSV](../navigation_goal_results.csv) does not include every later deployment experiment.
