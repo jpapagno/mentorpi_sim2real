@@ -1,34 +1,23 @@
-"""Continuous filtered depth obstacles and inspectable binary policy map."""
+"""Publish the inspectable LiDAR-only binary policy grid."""
 import json
 import time
 import numpy as np
 import rclpy
-from sensor_msgs_py import point_cloud2
-from sensor_msgs.msg import PointCloud2
 from nav_msgs.msg import OccupancyGrid
-from std_msgs.msg import Header,String
+from std_msgs.msg import String
 from navigation_io import NavigationIO
 
 
 class PerceptionNode(NavigationIO):
     def __init__(self):
         super().__init__('mentorpi_perception')
-        self.cloud_pub=self.create_publisher(PointCloud2,'/mentorpi/depth_obstacles',10)
         self.grid_pub=self.create_publisher(OccupancyGrid,'/mentorpi/policy_grid',1)
         self.health_pub=self.create_publisher(String,'/mentorpi/perception_health',10)
-        self.last_depth_stamp=None
         self.create_timer(.1,self.update)
         self.last_grid=0.
 
     def update(self):
         try:
-            if self.depth is not None and self.intrinsics is not None:
-                stamp=(self.depth.header.stamp.sec,self.depth.header.stamp.nanosec)
-                if stamp!=self.last_depth_stamp and self.age(self.depth)<.5:
-                    points=self.depth_points().astype(np.float32)
-                    header=Header();header.frame_id='base_footprint';header.stamp=self.depth.header.stamp
-                    self.cloud_pub.publish(point_cloud2.create_cloud_xyz32(header,points))
-                    self.last_depth_stamp=stamp
             health=self.health()
             status=String();status.data=json.dumps({'blocked_by':health})
             self.health_pub.publish(status)

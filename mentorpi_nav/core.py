@@ -1,8 +1,10 @@
 """Batched navigation model, independent of USD, rendering, and Isaac Lab.
 
 Coordinates are metres/radians, +x forward, +y left, +yaw counterclockwise.
-The disc robot follows piecewise-linear, swept-checked segments. It is not a
-wheel/traction simulator. All obstacle geometry is provided to the policy.
+The disc robot follows piecewise-linear, swept-checked segments. Optional
+mecanum_v1 adds calibrated channel kinematics and configurable motor response;
+it is still an analytic model without contact/roller physics. All obstacle
+geometry is provided to the policy.
 """
 
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ import math
 import random
 
 import torch
+from .drivetrain import DriveConfig
 
 
 @dataclass(frozen=True)
@@ -41,8 +44,20 @@ class NavigationCfg:
     clearance_distance: float = 0.12
     actuator_scale_range: tuple[float, float] | None = None
     action_delay_steps: int = 0
+    drive_model: str = 'body'
+    wheel_diameter: float = .065
+    wheelbase: float = .1368
+    track_width: float = .1446
+    max_wheel_rps: float = .8
+    wheel_acceleration_rps2: float = 2.
+    wheel_deadband_rps: float = 0.
+    wheel_gains: tuple[float, float, float, float] = (1., 1., 1., 1.)
+    command_gain: float = 1.
 
     def __post_init__(self):
+        if self.drive_model not in ('body', 'mecanum_v1'):
+            raise ValueError('Unknown drivetrain model')
+        self.drivetrain_config()
         if not 0 <= self.obstacle_count <= self.max_obstacles:
             raise ValueError("obstacle_count must be between zero and max_obstacles")
         if self.dt <= 0 or self.robot_radius <= 0 or self.obstacle_radius <= 0:
@@ -74,6 +89,10 @@ class NavigationCfg:
     def observation_size(self):
         # Goal xy, body velocity, last action; occupancy is a separate CNN input.
         return 8
+
+    def drivetrain_config(self):
+        values = {name: getattr(self,name) for name in DriveConfig.__dataclass_fields__ if name != 'body_acceleration_limits'}
+        return DriveConfig(**values,body_acceleration_limits=self.acceleration_limits)
 
 
 def world_to_body(delta: torch.Tensor, yaw: torch.Tensor) -> torch.Tensor:
@@ -197,6 +216,13 @@ class NavigationState:
         self.acceleration = torch.tensor(self.cfg.acceleration_limits, device=device)
         self.actuator_scale = torch.ones(num_envs,3,device=device)
         self.delayed_actions = torch.zeros(num_envs,max(1,self.cfg.action_delay_steps),3,device=device)
+        self.drive = self.cfg.drivetrain_config()
+        self.wheel_rps = torch.zeros(num_envs,4,device=device)
+        self.wheel_command_rps = torch.zeros_like(self.wheel_rps)
+        self.body_command_velocity = torch.zeros_like(self.velocity)
+        self._wheel_inverse = torch.tensor(self.drive.inverse_matrix,device=device)
+        self._wheel_forward = torch.tensor(self.drive.forward_matrix,device=device)
+        self._wheel_gains = torch.tensor(self.drive.wheel_gains,device=device)
         axis = ((self.cfg.occupancy_size - 1) / 2 - torch.arange(
             self.cfg.occupancy_size, device=device)) * self.cfg.occupancy_resolution
         forward, left = torch.meshgrid(axis, axis, indexing="ij")
@@ -222,6 +248,9 @@ class NavigationState:
         self.success[ids] = False
         self.reward[ids] = 0
         self.delayed_actions[ids] = 0
+        self.wheel_rps[ids] = 0
+        self.wheel_command_rps[ids] = 0
+        self.body_command_velocity[ids] = 0
         if self.cfg.actuator_scale_range is not None:
             self.actuator_scale[ids] = torch.tensor([[self.rng.uniform(*self.cfg.actuator_scale_range) for _ in range(3)] for _ in ids],device=self.device)
 
@@ -236,9 +265,20 @@ class NavigationState:
             applied=self.delayed_actions[:,0].clone()
             self.delayed_actions[:,:-1]=self.delayed_actions[:,1:].clone()
             self.delayed_actions[:,-1]=actions
-        difference = applied * self.limits * self.actuator_scale - self.velocity
+        previous_velocity = self.body_command_velocity if cfg.drive_model == 'mecanum_v1' else self.velocity
+        difference = applied * self.limits * self.actuator_scale - previous_velocity
         max_change = self.acceleration * cfg.dt
-        velocity = self.velocity + difference.clamp(-max_change, max_change)
+        velocity = previous_velocity + difference.clamp(-max_change, max_change)
+        if cfg.drive_model == 'mecanum_v1':
+            self.body_command_velocity = velocity
+            targets = self.drive.command_gain*(velocity @ self._wheel_inverse.T)
+            ratio = (targets.abs().amax(-1,keepdim=True)/self.drive.max_wheel_rps).clamp_min(1.)
+            self.wheel_command_rps = targets/ratio
+            wheel_delta = self.drive.wheel_acceleration_rps2*cfg.dt
+            self.wheel_rps += (self.wheel_command_rps-self.wheel_rps).clamp(-wheel_delta,wheel_delta)
+            realized = torch.where(self.wheel_rps.abs() < self.drive.wheel_deadband_rps,
+                                   0.,self.wheel_rps*self._wheel_gains)
+            velocity = realized @ self._wheel_forward.T
         midpoint_yaw = self.yaw + velocity[:, 2] * cfg.dt / 2
         # Inverse rotation: transform the commanded body displacement to world.
         proposed = self.xy + world_to_body(velocity[:, :2] * cfg.dt, -midpoint_yaw)
@@ -246,6 +286,9 @@ class NavigationState:
                                          cfg.robot_radius, cfg.arena_half_extent)
         self.xy = torch.where(self.collision[:, None], self.xy, proposed)
         self.velocity = torch.where(self.collision[:, None], 0.0, velocity)
+        self.wheel_rps[self.collision] = 0
+        self.wheel_command_rps[self.collision] = 0
+        self.body_command_velocity[self.collision] = 0
         self.yaw = (self.yaw + self.velocity[:, 2] * cfg.dt + math.pi) % (2 * math.pi) - math.pi
         distance = torch.linalg.vector_norm(self.goal - self.xy, dim=-1)
         self.success = (distance < cfg.goal_tolerance) & ~self.collision

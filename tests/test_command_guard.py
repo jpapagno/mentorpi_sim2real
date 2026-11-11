@@ -24,9 +24,9 @@ class CommandGuardTests(unittest.TestCase):
             self.assertEqual(output,(0.,0.,0.))
             self.assertIn(reason,reasons)
 
-    def test_contact_envelope_and_nonfinite_input(self):
+    def test_clearance_is_diagnostic_and_nonfinite_input_stops(self):
         gate=self.healthy();gate.clearance=.21
-        self.assertEqual(gate.output(10.1)[0],(0.,0.,0.))
+        self.assertEqual(gate.output(10.1)[0],(.1,-.1,.3))
         gate=self.healthy();gate.receive_command((float('nan'),0.,0.),10.)
         self.assertIn('command_stale',gate.output(10.1)[1])
 

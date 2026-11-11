@@ -9,3 +9,11 @@ local_paths.json
 .env.*
 *.pem
 *.key
+test_results.txt
+navigation_goal_results.csv
+# Local project notes and hardware-session reports are not public source.
+GOAL_PROGRESS.md
+MENTORPI_SIM_SCOPE.md
+DRIVETRAIN_COMMISSIONING.md
+ROBOT_DEPLOYMENT_PROGRESS.md
+ROBOT_DEPLOYMENT_RESEARCH.md

@@ -12,16 +12,11 @@ ekf_filter_node:
     world_frame: odom
     transform_time_offset: 0.0
     transform_timeout: 0.1
-    odom0: /odom_rf2o
+    odom0: /mentorpi/measured_odom
     odom0_config: [true, true, false, false, false, true, false, false, false, false, false, false, false, false, false]
     odom0_relative: false
     odom0_differential: false
     odom0_queue_size: 5
-    odom1: /odom_raw
-    odom1_config: [false, false, false, false, false, false, true, true, false, false, false, false, false, false, false]
-    odom1_relative: false
-    odom1_differential: false
-    odom1_queue_size: 5
     imu0: /imu
     imu0_config: [false, false, false, false, false, false, false, false, false, false, false, true, false, false, false]
     imu0_relative: false

@@ -12,8 +12,8 @@ from navigation_io import NavigationIO
 
 
 class CommissionDrive(NavigationIO):
-    def __init__(self):
-        super().__init__('mentorpi_drive_commission')
+    def __init__(self,local_mode=None):
+        super().__init__('mentorpi_drive_commission',local_mode=local_mode)
         self.command_pub=self.create_publisher(Twist,'/mentorpi/policy_cmd_vel',10)
         self.enable_pub=self.create_publisher(Bool,'/mentorpi/motion_enable',10)
         self.applied=[]
@@ -58,12 +58,15 @@ def main():
     if not 0<args.speed<=.1 or not 0<args.duration<=2. or args.speed*args.duration>.06:raise ValueError('Commissioning pulse exceeds bounds')
     rclpy.init();node=CommissionDrive()
     result={'mode':args.pulse or 'stationary_watchdog','stages':[]}
+    claimed=False
     try:
-        if node.ownership.wait_for_service(timeout_sec=2.):
-            request=SetBool.Request();request.data=True
-            future=node.ownership.call_async(request)
-            rclpy.spin_until_future_complete(node,future,timeout_sec=3.)
-            if future.result() is None or not future.result().success:raise RuntimeError('Commissioning ownership denied')
+        if not node.ownership.wait_for_service(timeout_sec=20.):
+            raise RuntimeError('Commissioning ownership service unavailable; no motion attempted')
+        request=SetBool.Request();request.data=True
+        future=node.ownership.call_async(request)
+        rclpy.spin_until_future_complete(node,future,timeout_sec=3.)
+        if future.result() is None or not future.result().success:raise RuntimeError('Commissioning ownership denied')
+        claimed=True;result['ownership_response']=future.result().message
         node.phase(10.,(0.,0.,0.),False)
         if node.health():raise RuntimeError(str(node.health()))
         start,_=node.pose()
@@ -91,6 +94,10 @@ def main():
             result['pulse_applied_nonzero_samples']=sum(any(abs(v)>1e-6 for v in row) for row in applied)
             result['pulse_filtered_nonzero_samples']=sum(any(abs(v)>1e-6 for v in row[1:]) for row in node.filtered if pulse_at<=row[0]<=pulse_end)
             result['pulse_block_reasons']=sorted({reason for stamp,status in node.status_history if pulse_at<=stamp<=pulse_end for reason in status.get('blocked_by',[])})
+            pulse_status=[status for stamp,status in node.status_history if pulse_at<=stamp<=pulse_end]
+            if pulse_status:
+                result['pulse_first_enable_counts']=pulse_status[0].get('enable_counts')
+                result['pulse_last_enable_counts']=pulse_status[-1].get('enable_counts')
             delta=after-before
             if args.pulse=='yaw':measured=float(delta[2])
             else:
@@ -104,8 +111,8 @@ def main():
     except Exception as exc:
         result.update(passed=False,error=str(exc))
     finally:
-        node.phase(.5,(0.,0.,0.),False)
-        if node.ownership.service_is_ready():
+        if claimed:node.phase(.5,(0.,0.,0.),False)
+        if claimed and node.ownership.service_is_ready():
             request=SetBool.Request();request.data=False
             future=node.ownership.call_async(request)
             rclpy.spin_until_future_complete(node,future,timeout_sec=3.)

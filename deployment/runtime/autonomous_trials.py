@@ -20,6 +20,8 @@ import torch
 
 from navigation_io import NavigationIO
 from navigation_math import reachable_goal_candidates,subgoal_on_path,yaw_of
+from policy_runtime import warm_actor
+from motion_feedback import MotionProgressMonitor
 
 
 class AutonomousTrials(NavigationIO):
@@ -27,6 +29,9 @@ class AutonomousTrials(NavigationIO):
         super().__init__('mentorpi_autonomous_trials')
         self.root=Path('/home/ubuntu/shared/mentorpi_nav')
         self.actor=torch.jit.load(str(self.root/'models/policy.ts')).eval()
+        self.inference_warmup=warm_actor(self.actor)
+        self.motion_progress=MotionProgressMonitor()
+        (self.root/'diagnostics/policy_warmup.json').write_text(json.dumps(self.inference_warmup,indent=2))
         self.planner=ActionClient(self,ComputePathToPose,'/compute_path_to_pose')
         self.command_pub=self.create_publisher(Twist,'/mentorpi/policy_cmd_vel',10)
         self.enable_pub=self.create_publisher(Bool,'/mentorpi/motion_enable',10)
@@ -70,6 +75,7 @@ class AutonomousTrials(NavigationIO):
         self.rng=np.random.default_rng(self.seed);self.sample_attempts=0
         self.trace=(self.root/'logs'/f'trials_{self.session_id}.jsonl').open('w',buffering=1)
         self.active=True;self.mode='SELECT';self.goal=None;self.path=None
+        self.motion_progress.start=None
         self.previous_action[:]=0;self.last_velocity[:]=0
         response.success=True;response.message=f'Started {self.episodes} automatic goals, session {self.session_id}'
         self.event('session_start',seed=self.seed,episodes=self.episodes)
@@ -83,6 +89,7 @@ class AutonomousTrials(NavigationIO):
             response.success=False;response.message='Stop the trial session before commissioning';return response
         self.publish([0.,0.,0.],False)
         self.commissioning_paused=request.data
+        self.get_logger().info('Commissioning ownership paused='+str(self.commissioning_paused))
         response.success=True;response.message='Commissioning controller ownership' if request.data else 'Returned to disarmed trial controller'
         return response
 
@@ -203,6 +210,10 @@ class AutonomousTrials(NavigationIO):
             goal=self.choose_goal();self.mode='PLAN';self.request_plan(goal);return
         if self.mode=='PLAN':self.publish([0.,0.,0.],False);return
         base,_=self.pose();distance=float(np.linalg.norm(self.goal-base[:2]))
+        measured=self.measured_odom.pose.pose;p=measured.position;q=measured.orientation
+        fault=self.motion_progress.update(now,[p.x,p.y,yaw_of([q.x,q.y,q.z,q.w])],self.guard.get('applied',[0.,0.,0.]))
+        if fault:
+            self.finish_goal('fault',reason=fault);self.stop(fault);return
         if distance<=.15:
             self.publish([0.,0.,0.],True)
             v=self.odom.twist.twist
@@ -215,7 +226,12 @@ class AutonomousTrials(NavigationIO):
         if now-self.goal_started>self.goal_seconds:self.finish_goal('timeout');return
         target=subgoal_on_path(self.path,base,lookahead=.5)
         state,grid,details=self.observations(target,self.previous_action)
+        inference_started=time.perf_counter()
         with torch.no_grad():action=self.actor(torch.from_numpy(state),torch.from_numpy(grid)).numpy()[0]
+        if time.perf_counter()-inference_started>.1:
+            self.stop('inference_deadline');return
+        if self.health():
+            self.stop('post_inference_health_fault');return
         if not np.isfinite(action).all():raise RuntimeError('Non-finite policy output')
         action=np.clip(action,-1.,1.)
         desired=np.clip(action*np.array([.2,.2,.5]),[-.1,-.1,-.3],[.1,.1,.3])
@@ -244,7 +260,7 @@ def main():
     parser.add_argument('--goal-seconds',type=float,default=90.)
     args=parser.parse_args()
     if not 1<=args.goals<=100 or args.goal_seconds<=0:raise ValueError('Invalid session limits')
-    torch.set_num_threads(1);rclpy.init();node=AutonomousTrials(args.goals,args.seed,args.goal_seconds)
+    torch.set_num_threads(1);torch.set_num_interop_threads(1);rclpy.init();node=AutonomousTrials(args.goals,args.seed,args.goal_seconds)
     try:rclpy.spin(node)
     except (KeyboardInterrupt,rclpy.executors.ExternalShutdownException):pass
     finally:

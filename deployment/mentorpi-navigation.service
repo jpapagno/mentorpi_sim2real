@@ -1,7 +1,8 @@
 [Unit]
 Description=MentorPi learned navigation (starts disarmed)
 Requires=docker.service
-After=docker.service
+After=docker.service wifi.service start_node.service
+Conflicts=start_node.service wifi.service
 StartLimitIntervalSec=120
 StartLimitBurst=10
 
@@ -9,10 +10,11 @@ StartLimitBurst=10
 Type=simple
 User=pi
 ExecStartPre=/usr/bin/docker start MentorPi
+ExecStartPre=+/usr/bin/python3 /home/pi/docker/tmp/mentorpi_nav/check_serial_owner.py
 ExecStart=/usr/bin/docker exec -u ubuntu -w /home/ubuntu MentorPi /bin/zsh -c "source /home/ubuntu/.zshrc >/dev/null; exec ros2 launch /home/ubuntu/shared/mentorpi_nav/runtime/bringup.launch.py"
 ExecStop=/usr/bin/python3 /home/pi/docker/tmp/mentorpi_nav/stop_stack.py
 ExecStopPost=/usr/bin/docker exec -u ubuntu -w /home/ubuntu MentorPi /bin/zsh -c "source /home/ubuntu/.zshrc >/dev/null; python3 /home/ubuntu/shared/mentorpi_nav/runtime/stop_motors.py"
-Restart=on-failure
+Restart=always
 RestartSec=3
 TimeoutStopSec=10
 KillMode=control-group

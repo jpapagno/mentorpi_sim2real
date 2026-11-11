@@ -1,6 +1,6 @@
 """Exclusive board owner: sensor publication and fail-closed motor watchdog.
 
-Only /mentorpi/guarded_cmd_vel plus a fresh motion_enable heartbeat can move it.
+Only /mentorpi/policy_cmd_vel plus a fresh motion_enable heartbeat can move it.
 Vendor /cmd_vel and set_motor routes have no hardware subscription here.
 """
 import fcntl
@@ -18,8 +18,8 @@ from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Bool, UInt16, String
-from controller.mecanum import MecanumChassis
-from ros_robot_controller.ros_robot_controller_sdk import Board
+from drivetrain import DriveConfig
+from rrc_serial import SerialBoard
 from command_guard import CommandGuard
 
 
@@ -31,18 +31,22 @@ class HardwareBridge(Node):
         self.running=True
         self.started=time.monotonic()
         self.last_reason=None
-        self.board=Board(timeout=.05)
+        self.last_enable={'value':False,'at':time.monotonic()}
+        self.enable_counts={'true':0,'false':0}
+        config=Path('/home/ubuntu/shared/mentorpi_nav/config/drivetrain.json')
+        self.kinematics=DriveConfig(**json.loads(config.read_text()))
+        self.wheel_speeds=(0.,)*4
+        self.body_command=(0.,)*3
+        self.board=SerialBoard(timeout=.01)
         self.board.enable_reception()
         self.board.set_motor_speed([[i,0.] for i in range(1,5)])
-        self.kinematics=MecanumChassis(wheelbase=.1368,track_width=.1446,wheel_diameter=.065)
         self.imu_pub=self.create_publisher(Imu,'/ros_robot_controller/imu_raw',10)
         self.battery_pub=self.create_publisher(UInt16,'/ros_robot_controller/battery',10)
         self.applied_pub=self.create_publisher(Twist,'/mentorpi/applied_cmd_vel',10)
-        # Existing vendor command-integrated odometry follows applied commands.
-        # Its motor messages have no hardware subscriber and cannot bypass us.
+        # Legacy diagnostic alias only; no command-integrated odometry is fused.
         self.odom_command_pub=self.create_publisher(Twist,'/controller/cmd_vel',10)
         self.status_pub=self.create_publisher(String,'/mentorpi/guard_status',10)
-        self.create_subscription(Twist,'/mentorpi/guarded_cmd_vel',self.command,10)
+        self.create_subscription(Twist,'/mentorpi/policy_cmd_vel',self.command,10)
         self.create_subscription(Bool,'/mentorpi/motion_enable',self.enable,10)
         self.create_subscription(LaserScan,'/scan_raw',self.scan,qos_profile_sensor_data)
         self.create_timer(.02,self.sensors)
@@ -56,13 +60,15 @@ class HardwareBridge(Node):
     def enable(self,msg):
         with self.lock:
             self.guard.receive_enable(msg.data,time.monotonic())
+            self.last_enable={'value':bool(msg.data),'at':time.monotonic()}
+            self.enable_counts['true' if msg.data else 'false']+=1
 
     def scan(self,msg):
         ranges=np.asarray(msg.ranges)
         valid=ranges[np.isfinite(ranges)&(ranges>=msg.range_min)&(ranges<=msg.range_max)]
         age=self.get_clock().now().nanoseconds*1e-9-(msg.header.stamp.sec+msg.header.stamp.nanosec*1e-9)
         if len(valid)<20 or not -.05<=age<.4:return
-        # Conservative circular envelope includes the scanner/base offset.
+        # Track scan freshness; clearance is diagnostic, not a motor override.
         with self.lock:
             self.guard.scan_at=time.monotonic()
             self.guard.clearance=float(valid.min())
@@ -94,19 +100,31 @@ class HardwareBridge(Node):
 
     def motor_loop(self):
         failures=0
+        previous=time.monotonic()
         while self.running:
             with self.lock:command,reasons=self.guard.output(time.monotonic())
             try:
-                wheels=self.kinematics.set_velocity(*command)
-                self.board.set_motor_speed([[motor.id,motor.rps] for motor in wheels.data])
+                now=time.monotonic();dt=max(.001,min(.05,now-previous));previous=now
+                self.body_command=self.kinematics.advance_body(self.body_command,command,dt,stop=bool(reasons))
+                target=self.kinematics.wheel_speeds(self.body_command)
+                self.wheel_speeds=self.kinematics.advance(self.wheel_speeds,target,dt,stop=bool(reasons))
+                self.board.set_motor_speed([[index+1,rps] for index,rps in enumerate(self.wheel_speeds)])
+                applied=self.kinematics.body_velocity(self.wheel_speeds)
                 failures=0
-                msg=Twist();msg.linear.x=command[0];msg.linear.y=command[1];msg.angular.z=command[2]
+                msg=Twist();msg.linear.x=applied[0];msg.linear.y=applied[1];msg.angular.z=applied[2]
                 self.applied_pub.publish(msg)
                 self.odom_command_pub.publish(msg)
-                status=String();status.data=json.dumps({'applied':command,'blocked_by':reasons})
+                status=String();status.data=json.dumps({'applied':applied,'wheel_command_rps':self.wheel_speeds,
+                    'velocity_is_measured':False,'serial_rx_bytes':self.board.rx_bytes,
+                    'serial_valid_packets':self.board.parser.valid,'blocked_by':reasons})
+                current=json.loads(status.data)
+                current.update(last_enable=self.last_enable,enable_counts=self.enable_counts,serial_tx_bytes=self.board.tx_bytes)
+                status.data=json.dumps(current)
                 self.status_pub.publish(status)
             except Exception as exc:
                 with self.lock:self.guard.enabled=False
+                self.wheel_speeds=(0.,)*4
+                self.body_command=(0.,)*3
                 self.get_logger().error(f'Hardware output failed: {exc}')
                 failures+=1
                 if failures>=3:

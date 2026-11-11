@@ -1,5 +1,6 @@
 """Save the observed map and generate fixed-map AMCL configuration."""
 import json
+import argparse
 from pathlib import Path
 import subprocess
 import time
@@ -8,13 +9,18 @@ import rclpy
 from navigation_io import NavigationIO
 
 root=Path('/home/ubuntu/shared/mentorpi_nav')
+parser=argparse.ArgumentParser()
+parser.add_argument('--map-name',default='test_area')
+args=parser.parse_args()
+if not args.map_name.replace('_','').isalnum():raise ValueError('Simple map name required')
+map_path=root/'maps'/args.map_name
 (root/'maps').mkdir(exist_ok=True)
 rclpy.init();node=NavigationIO('mentorpi_save_test_area')
 deadline=time.monotonic()+8
 while time.monotonic()<deadline:rclpy.spin_once(node,timeout_sec=.02)
 if node.health():raise RuntimeError(str(node.health()))
 pose,_=node.pose()
-command=['ros2','run','nav2_map_server','map_saver_cli','-f',str(root/'maps/test_area'),
+command=['ros2','run','nav2_map_server','map_saver_cli','-f',str(map_path),
          '--ros-args','-p','save_map_timeout:=20.0','-p','map_subscribe_transient_local:=true']
 run=subprocess.run(command,capture_output=True,text=True,timeout=30)
 if run.returncode:raise RuntimeError(run.stdout+run.stderr)
@@ -30,8 +36,8 @@ parameters={
  'initial_pose':{'x':float(pose[0]),'y':float(pose[1]),'z':0.,'yaw':float(pose[2])},
 }
 configuration={'amcl':{'ros__parameters':parameters},
- 'map_server':{'ros__parameters':{'use_sim_time':False,'yaml_filename':str(root/'maps/test_area.yaml'),'frame_id':'map','topic_name':'map'}}}
+ 'map_server':{'ros__parameters':{'use_sim_time':False,'yaml_filename':str(map_path.with_suffix('.yaml')),'frame_id':'map','topic_name':'map'}}}
 (root/'config/localization.yaml').write_text(yaml.safe_dump(configuration,sort_keys=False))
 (root/'config/initial_pose.json').write_text(json.dumps(pose.tolist()))
-print(json.dumps({'saved_map':str(root/'maps/test_area.yaml'),'pose':pose.tolist(),'map_width':node.map.info.width,'map_height':node.map.info.height}),flush=True)
+print(json.dumps({'saved_map':str(map_path.with_suffix('.yaml')),'pose':pose.tolist(),'map_width':node.map.info.width,'map_height':node.map.info.height}),flush=True)
 node.destroy_node();rclpy.shutdown()

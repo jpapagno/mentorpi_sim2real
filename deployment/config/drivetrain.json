@@ -1,0 +1,11 @@
+{
+  "wheel_diameter": 0.065,
+  "wheelbase": 0.1368,
+  "track_width": 0.1446,
+  "max_wheel_rps": 0.8,
+  "wheel_acceleration_rps2": 2.0,
+  "wheel_deadband_rps": 0.0,
+  "wheel_gains": [1.0, 1.0, 1.0, 1.0],
+  "body_acceleration_limits": [0.5, 0.5, 1.5],
+  "command_gain": 1.0
+}

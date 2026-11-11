@@ -18,14 +18,8 @@ collision_monitor:
       visualize: true
       polygon_pub_topic: /mentorpi/stop_polygon
       enabled: true
-    observation_sources: [scan, depth]
+    observation_sources: [scan]
     scan:
       type: scan
       topic: /scan
-      enabled: true
-    depth:
-      type: pointcloud
-      topic: /mentorpi/depth_obstacles
-      min_height: 0.04
-      max_height: 0.5
       enabled: true

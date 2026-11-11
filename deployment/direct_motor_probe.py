@@ -15,7 +15,7 @@ import time
 import serial
 from serial.tools import list_ports
 
-ROBOT_SERIAL='REPLACE_WITH_YOUR_BOARD_SERIAL'
+ROBOT_SERIAL='5917011712'
 
 
 def crc8(data):
@@ -98,4 +98,3 @@ def main():
 
 
 if __name__=='__main__':raise SystemExit(main())
-

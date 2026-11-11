@@ -5,7 +5,7 @@ every velocity command is produced by the actor, without teacher actions or a
 collision override. This is a stack test, separate from direct-goal benchmarks.
 """
 import argparse
-from dataclasses import replace
+from dataclasses import replace,asdict
 import json
 import math
 from pathlib import Path
@@ -72,6 +72,7 @@ def main():
     actor=load_actor(args.checkpoint,NavigationState(1,cfg,args.device).observations(),args.device)
     output=Path(args.output);output.mkdir(parents=True,exist_ok=True)
     summary={'checkpoint':args.checkpoint,'scenario_file':args.scenario_file,'lookahead_m':args.lookahead,
+        'navigation':asdict(cfg),
         'mode':'global_path_subgoal_stack','velocity_source':'learned_actor_only','results':[]}
     for seed in args.seeds:
         started=time.monotonic()

@@ -35,5 +35,4 @@ class CommandGuard:
         if now-self.command_at>.20:reasons.append('command_stale')
         if now-self.scan_at>.40:reasons.append('scan_stale')
         if now-self.imu_at>.25:reasons.append('imu_stale')
-        if self.clearance<.22:reasons.append('obstacle_close')
         return ((0.,0.,0.) if reasons else self.command),reasons

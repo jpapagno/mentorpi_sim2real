@@ -69,11 +69,21 @@ Checkpoints must retain their neighboring task/agent manifests. The example trai
 
 ## Robot deployment
 
-The code under `deployment/` targets a particular MentorPi hardware/software stack. Review device names, ROS topics, paths, service files, sensor calibration, and board serial selection for your robot before use. `direct_motor_probe.py` deliberately contains a placeholder board serial.
+The code under `deployment/` targets a particular MentorPi hardware/software stack. Review device names, ROS topics, paths, service files, sensor calibration, and board serial selection for your robot before use.
 
 `robot-ssh.ps1` expects ignored, locally created connection settings and Windows DPAPI credentials under `.local/`; no credentials are supplied. SSH transport uses Paramiko. Policy export additionally uses ONNX; serial probes use PySerial; observer-camera scripts use OpenCV.
 
-Runtime startup is disarmed. Autonomous trial start requires a commissioning acceptance artifact, valid localization, fresh sensors, and explicit arming. Hardware motion and end-to-end navigation remain unvalidated. The learned policy is not a general safety controller.
+The current prototype uses **LiDAR scan → local occupancy grid**, together with goal, measured velocity, and previous action, to infer body-velocity commands. No saved map or camera is needed in local mode. RF2O LiDAR odometry and IMU-assisted orientation track progress; arrival means within 0.15 m, with no final heading requirement.
+
+On the configured Pi, supply a goal in metres (forward, left):
+
+```bash
+sudo python3 /home/pi/docker/tmp/mentorpi_nav/run_policy_check.py --goal-relative 1 0
+```
+
+The command starts automatically after model/sensor initialization. Ctrl+C stops it. Optional `--seconds` and `--max-displacement` set run limits; neither has a default cap. Per the prototype configuration, obstacle avoidance is left to the policy: the external collision monitor and distance-stop override are removed. Command/sensor timeouts, speed limits, and the no-measured-motion detector remain. The policy can reverse or stall, and accepting a distant goal does not establish reliable long-range navigation.
+
+Hardware wheel mapping, translation, turning, and one goal arrival have been observed; general obstacle avoidance is not yet established. See [deployment details](ROBOT_DEPLOYMENT.md) and [prototype instructions](AGENTS.md). The older saved-map trial mode remains separate from this direct local-goal entry point.
 
 ## References
 
