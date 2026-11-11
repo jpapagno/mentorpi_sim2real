@@ -1,7 +1,7 @@
 import math
 import unittest
 import numpy as np
-from deployment.runtime.scan_math import fixed_circle_scan
+from mentorpi_nav.robot.scan_math import fixed_circle_scan
 
 
 class ScanNormalizationTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 import math
 import unittest
-from deployment.runtime.motion_feedback import PlanarVelocityEstimator,MotionProgressMonitor
+from mentorpi_nav.robot.motion_feedback import PlanarVelocityEstimator,MotionProgressMonitor
 
 class MotionFeedbackTests(unittest.TestCase):
     def test_measured_sideways_velocity_rotates_into_body_frame(self):

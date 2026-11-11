@@ -1,13 +1,24 @@
 """Training-only grid planner used to diagnose feasibility and generate demonstrations.
 
-It is never used by evaluate_suite.py or the deployed/playback actor.
+It is never used by mentorpi_nav.cli.evaluate or the deployed/playback actor.
 """
 
 import heapq
 import math
-
 import torch
 
+
+def subgoal_on_path(points, position, lookahead=1.):
+    """Select a lookahead point for simulation path-following comparisons."""
+    import numpy as np
+    points = np.asarray(points)
+    nearest = int(np.argmin(np.linalg.norm(points[:, :2] - np.asarray(position)[:2], axis=1)))
+    distance = 0.
+    for index in range(nearest + 1, len(points)):
+        distance += float(np.linalg.norm(points[index, :2] - points[index - 1, :2]))
+        if distance >= lookahead:
+            return points[index, :2]
+    return points[-1, :2]
 
 def line_clear(start, end, obstacles, radius, half_extent):
     if max(abs(v) for v in (*start, *end)) >= half_extent - radius:

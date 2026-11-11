@@ -8,16 +8,16 @@ Goal-reaching and obstacle avoidance for the **MentorPi M1 with depth camera**. 
 
 ```powershell
 # Load the trained empty-room policy automatically; CPU playback, no Isaac renderer.
-.\view-navigation.ps1
+.\scripts\view-navigation.ps1
 
 # Select another checkpoint. Settings are taken from its neighboring task.json.
-.\view-navigation.ps1 -ViewerArgs @('--checkpoint', 'logs/grid_obstacles/final.pt')
+.\scripts\view-navigation.ps1 -ViewerArgs @('--checkpoint', 'logs/grid_obstacles/final.pt')
 
 # Use the trained task's layout/settings but drive manually.
-.\view-navigation.ps1 -ViewerArgs @('--manual')
+.\scripts\view-navigation.ps1 -ViewerArgs @('--manual')
 
 # Test an empty-room checkpoint against four obstacles while following new saves.
-.\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/grid_extended','--follow','--seed','123','--obstacles','4')
+.\scripts\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/grid_extended','--follow','--seed','123','--obstacles','4')
 ```
 
 The Tkinter window shows the arena, robot heading, goal, movement trail, live 100 × 100 policy grid, commanded actions, actual velocities, distance and episode status. Use Pause, Step, New episode, Auto-reset and playback speed controls. Manual controls: W/S forward/reverse, A/D sideways, Q/E rotate. Click free arena space to change the goal for interactive debugging. Blue/green map markers are overlays, not extra model input channels.
@@ -31,13 +31,13 @@ The **Checkpoint** selector lists snapshots in numeric iteration order. Refresh 
 The original run used eight environments and saved every 25 iterations. To resume the existing empty-room model for **1,000 additional PPO updates**, collecting experience from 32 environments and saving every 100 iterations:
 
 ```powershell
-.\run-navigation.ps1 -TaskArgs @('--mode','train','--obstacles','0','--num-envs','32','--iterations','1000','--save-every','100','--checkpoint','logs/grid_empty_room/final.pt','--log-dir','logs/grid_extended')
+.\scripts\run-navigation.ps1 -TaskArgs @('--mode','train','--obstacles','0','--num-envs','32','--iterations','1000','--save-every','100','--checkpoint','logs/grid_empty_room/final.pt','--log-dir','logs/grid_extended')
 ```
 
 In another terminal, after the new run has written its first checkpoint:
 
 ```powershell
-.\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/grid_extended','--follow','--seed','123')
+.\scripts\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/grid_extended','--follow','--seed','123')
 ```
 
 To compare older models immediately, open `--run-dir logs/grid_empty_room` and select e.g. `model_100.pt`, `model_250.pt`, and `final.pt`. Save intervals use the runner's global iteration labels (the first label is zero), not environment time steps. The final checkpoint is saved even when it falls between intervals. `--iterations` counts additional updates when resuming. More environments increase samples per update; compare throughput and held-out success instead of iteration count alone. If GPU memory is tight, lower `--num-envs` to 16.
@@ -51,7 +51,7 @@ This viewer imports PyTorch, TensorDict, RSL-RL model code, Pillow and Tkinter, 
 Validation command (opens the window briefly and auto-closes):
 
 ```powershell
-.\view-navigation.ps1 -ViewerArgs @('--validate-frames', '20', '--report', 'logs/light_viewer_validation/ui.json')
+.\scripts\view-navigation.ps1 -ViewerArgs @('--validate-frames', '20', '--report', 'logs/light_viewer_validation/ui.json')
 ```
 
 ### Isaac Lab training and evaluation
@@ -62,19 +62,19 @@ From PowerShell in this project:
 
 ```powershell
 # Check scene creation, observations, actions, and resets.
-.\run-navigation.ps1 -TaskArgs @('--mode', 'smoke', '--num-envs', '4', '--steps', '900')
+.\scripts\run-navigation.ps1 -TaskArgs @('--mode', 'smoke', '--num-envs', '4', '--steps', '900')
 
 # First learning experiment: reach goals without interior obstacles.
-.\run-navigation.ps1 -TaskArgs @('--mode', 'train', '--obstacles', '0', '--num-envs', '8', '--iterations', '500', '--log-dir', 'logs/grid_empty_room')
+.\scripts\run-navigation.ps1 -TaskArgs @('--mode', 'train', '--obstacles', '0', '--num-envs', '8', '--iterations', '500', '--log-dir', 'logs/grid_empty_room')
 
 # Separate obstacle-avoidance experiment (same network, four obstacles).
-.\run-navigation.ps1 -TaskArgs @('--mode', 'train', '--obstacles', '4', '--num-envs', '8', '--iterations', '500', '--log-dir', 'logs/grid_obstacles')
+.\scripts\run-navigation.ps1 -TaskArgs @('--mode', 'train', '--obstacles', '4', '--num-envs', '8', '--iterations', '500', '--log-dir', 'logs/grid_obstacles')
 
 # Evaluate on layouts generated with a different seed. Match training obstacle count.
-.\run-navigation.ps1 -TaskArgs @('--mode', 'evaluate', '--obstacles', '4', '--checkpoint', 'logs/grid_obstacles/final.pt', '--seed', '123', '--num-envs', '4', '--steps', '4000')
+.\scripts\run-navigation.ps1 -TaskArgs @('--mode', 'evaluate', '--obstacles', '4', '--checkpoint', 'logs/grid_obstacles/final.pt', '--seed', '123', '--num-envs', '4', '--steps', '4000')
 
 # Optional GUI preview, using the separate Isaac Sim installation and DirectX 12.
-.\preview-navigation.bat --steps 300
+.\scripts\preview-navigation.bat --steps 300
 ```
 
 Pass `-LabRoot 'D:\path\to\IsaacLab'` if the checkout moves; update the asset path in `local_paths.json` or pass `--asset`. Use `--device cpu` for CPU debugging. Headless execution is the default and does not start Isaac Sim's RTX renderer. The installed Isaac Lab 3 Newton runtime supplies the environment loop; analytic planar motion owns the navigation dynamics.
@@ -125,18 +125,18 @@ Resume/evaluation validates the checkpoint's neighboring `task.json` against the
 
 ## Generalization experiments
 
-`GOAL_PROGRESS.md` records the frozen baseline and subsequent experiments. `evaluate_suite.py` runs a fixed number of complete episodes using the exact shared analytic dynamics, without starting Isaac Lab or rendering. Evaluation loads the actor alone: it does not use the demonstration planner.
+`RESULTS.md` records benchmark results. `mentorpi_nav/cli/evaluate.py` runs a fixed number of complete episodes using the exact shared analytic dynamics, without starting Isaac Lab or rendering. Evaluation loads the actor alone: it does not use the demonstration planner.
 
 ```powershell
 $navPython = "$env:USERPROFILE\Desktop\mentorpi\IsaacLab\.venv\Scripts\python.exe"
-& $navPython ./evaluate_suite.py --checkpoint logs/mentorpi_navigation_best/final.pt --scenario-file scenarios/original_four.json --seeds 456 789 2026 --episodes 200 --output logs/recheck_selected
-.\benchmark-scenarios.ps1 -Checkpoint logs/mentorpi_navigation_best/final.pt -Output logs/recheck_challenges
-.\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/mentorpi_navigation_best','--seed','789')
+& $navPython -m mentorpi_nav.cli.evaluate --checkpoint logs/mentorpi_navigation_best/final.pt --scenario-file scenarios/original_four.json --seeds 456 789 2026 --episodes 200 --output logs/recheck_selected
+.\scripts\benchmark-scenarios.ps1 -Checkpoint logs/mentorpi_navigation_best/final.pt -Output logs/recheck_challenges
+.\scripts\view-navigation.ps1 -ViewerArgs @('--run-dir','logs/mentorpi_navigation_best','--seed','789')
 ```
 
 Scenario profiles include variable counts/radii (`varied`), a divider with a narrow opening (`passages`), longer start-goal distances (`long_routes`), and a combined training distribution (`mixed_training`). Original four-obstacle cases can be restored explicitly with `original_four.json`, allowing identical comparisons across architectures.
 
-`train_imitation.py` provides training-only A* demonstrations and learner-state corrections (DAgger). `--goal-residual` creates a goal-conditioned residual CNN: a relative-goal steering prior supplies basic movement and the learned grid branch supplies corrections. Its manifest identifies this architecture and the supervised training method. These checkpoints load in the lightweight viewer and can initialize Isaac Lab PPO with `--transfer-scenario`; supervised loss alone is not a navigation success metric. The goal-steering prior assumes the current 4 m arena and 0.2 m/s translation limits.
+`mentorpi_nav/cli/train.py` provides training-only A* demonstrations and learner-state corrections (DAgger). `--goal-residual` creates a goal-conditioned residual CNN: a relative-goal steering prior supplies basic movement and the learned grid branch supplies corrections. Its manifest identifies this architecture and the supervised training method. These checkpoints load in the lightweight viewer and can initialize Isaac Lab PPO with `--transfer-scenario`; supervised loss alone is not a navigation success metric. The goal-steering prior assumes the current 4 m arena and 0.2 m/s translation limits.
 
 ## Validation
 
@@ -151,8 +151,8 @@ Key files:
 - `mentorpi_nav/core.py`: batched motion, observations, collision, reachable reset sampler.
 - `mentorpi_nav/lab_env.py`: Isaac Lab task, scene visuals, rewards/dones/resets.
 - `mentorpi_nav/agent.py`: PPO settings.
-- `run_navigation.py`: smoke/train/evaluate entry point.
+- `mentorpi_nav/cli/simulation.py`: smoke/train/evaluate entry point.
 - `mentorpi_nav/playback.py`: strict checkpoint loading and simulator-free playback.
-- `view_navigation.py`: lightweight Tkinter arena/map viewer.
+- `mentorpi_nav/cli/view.py`: lightweight Tkinter arena/map viewer.
 
 The reset sampler uses CPU flood-fill and the initial implementation draws USD objects individually. This is appropriate for initial small experiments, not yet optimized for thousands of environments. Tune the policy, validate held-out behavior, then add perception realism and deployment support.

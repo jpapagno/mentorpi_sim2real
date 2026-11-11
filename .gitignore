@@ -4,6 +4,12 @@ logs/
 outputs/
 .venv/
 .local/
+*.egg-info/
+build/
+dist/
+diagnostics/
+models/
+*.lock
 local_paths.json
 .env
 .env.*

@@ -1,5 +1,5 @@
 import unittest
-from deployment.runtime.command_guard import CommandGuard
+from mentorpi_nav.robot.command_guard import CommandGuard
 
 
 class CommandGuardTests(unittest.TestCase):

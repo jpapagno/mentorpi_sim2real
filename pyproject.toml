@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mentorpi-nav"
+version = "0.1.0"
+description = "LiDAR-only robot navigation and Isaac Lab policy training prototype"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+robot = ["numpy", "pyserial", "torch"]
+ssh = ["paramiko"]
+media = ["imageio", "imageio-ffmpeg", "Pillow"]
+
+[tool.setuptools.packages.find]
+include = ["mentorpi_nav*"]

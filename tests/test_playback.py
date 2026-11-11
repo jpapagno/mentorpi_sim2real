@@ -10,7 +10,7 @@ import torch
 
 from mentorpi_nav.core import NavigationCfg
 from mentorpi_nav.playback import NavigationPlayback
-from view_navigation import checkpoint_choices
+from mentorpi_nav.cli.view import checkpoint_choices
 
 CHECKPOINT = Path(__file__).resolve().parents[1] / "logs/grid_empty_room/final.pt"
 

@@ -31,9 +31,9 @@ Learning-based goal reaching and obstacle avoidance for the Hiwonder MentorPi M1
 
 - Trains a CNN navigation policy with behavior cloning, DAgger, and PPO.
 - Uses a robot-aligned 100 x 100 binary occupancy grid plus relative goal, velocity, and previous action. Commands are forward, lateral, and angular velocity.
-- Integrates LiDAR/depth mapping, localization, Nav2 global paths, and a learned local controller through ROS2.
+- Converts live LiDAR scans to robot-relative occupancy and runs the policy through ROS2.
 - Exports policies to TorchScript and ONNX for onboard inference.
-- Includes command expiry, sensor-health checks, disarmed startup, and a physical commissioning gate.
+- Keeps command expiry, sensor freshness, speed limits, and disarmed startup.
 
 The simulation uses analytic planar motion and swept-disc collision checks inside an Isaac Lab DirectRLEnv. It does not model wheel contact physics. Training observations use ground-truth obstacle geometry; onboard occupancy comes from perception and mapping.
 
@@ -43,38 +43,40 @@ A selected policy achieved **97.5-98% goal-reaching success across 600 simulated
 
 On Raspberry Pi 5, the later TorchScript policy had **5.20 ms p95 inference latency** over 300 calls under the running stack. Numerical export parity, live mapping/localization, and stationary watchdog behavior were checked. **Physical autonomous navigation is still being commissioned; no completed 30-goal hardware trial is claimed.**
 
-See [benchmark results](RESULTS.md) and [historical experiment counts](navigation_goal_results.csv).
+See [benchmark results](RESULTS.md).
 
 ## Repository layout
 
 | Path | Purpose |
 | --- | --- |
-| `mentorpi_nav/` | Navigation dynamics, observations, networks, training environment, teacher, evaluation, and playback |
-| `scenarios/` | Obstacle layouts and motion uncertainty configurations |
-| `deployment/runtime/` | ROS2 perception, navigation, hardware bridge, and command guards |
-| `deployment/config/` | SLAM, localization, planning, and collision-monitor configuration |
-| `deployment/export_policy.py` | TorchScript / ONNX export and parity checks |
-| `tests/`, `deployment/tests/` | Behavior, model-contract, and deployment regression tests |
-| `SIMULATION.md` | Detailed simulation interface and experiment commands |
+| `mentorpi_nav/` | Shared navigation dynamics, observations, networks, and playback |
+| `mentorpi_nav/cli/` | Simulation, training, evaluation, viewer, export, and preview commands |
+| `mentorpi_nav/robot/` | LiDAR-only ROS input, policy loop, serial bridge, and service commands |
+| `mentorpi_nav/media/` | Simulation demo recording and composition |
+| `mentorpi_nav/tools/` | SSH transport |
+| `scripts/` | Thin Windows launchers for the Python modules |
+| `deployment/` | ROS launch adapter, service unit, and active sensor/drivetrain configuration |
+| `scenarios/`, `tests/` | Simulation scenarios and existing regression tests |
+| `SIMULATION.md` | Detailed simulation commands |
 
 ## Setup and usage
 
-This is a research workspace, not a standalone packaged application. Training uses the Isaac Lab 3 / Newton API installed for the original experiments, along with PyTorch, TensorDict, and RSL-RL. ROS2 Humble and the robot's vendor drivers are needed onboard. The robot mesh/USD assets, simulator installation, trained checkpoints, maps, robot recordings, credentials, and generated logs are not included.
+The Python code is organized as importable modules. Run commands from the repository root, or install the package in your existing environment with `python -m pip install -e .`. Training uses the Isaac Lab 3 / Newton API installed for the original experiments, along with PyTorch, TensorDict, and RSL-RL. ROS2 Humble and the robot's vendor drivers are needed onboard. The robot mesh/USD assets, simulator installation, trained checkpoints, saved maps, credentials, and generated logs are not included. The four deployment videos above are included.
 
 Use your Isaac Lab Python environment. Copy `local_paths.example.json` to `local_paths.json` and set your local paths if using robot visuals. The USD asset is optional for headless training. PowerShell wrappers accept a local Isaac Lab root; Python entry points can also be called directly.
 
 ```powershell
 # Check the simulation environment.
-.\run-navigation.ps1 -LabRoot 'C:\path\to\IsaacLab' -TaskArgs @('--mode','smoke','--num-envs','4','--steps','300')
+.\scripts\run-navigation.ps1 -LabRoot 'C:\path\to\IsaacLab' -TaskArgs @('--mode','smoke','--num-envs','4','--steps','300')
 
 # Train an initial four-obstacle policy.
-.\run-navigation.ps1 -LabRoot 'C:\path\to\IsaacLab' -TaskArgs @('--mode','train','--obstacles','4','--num-envs','8','--iterations','500','--log-dir','logs/grid_obstacles')
+.\scripts\run-navigation.ps1 -LabRoot 'C:\path\to\IsaacLab' -TaskArgs @('--mode','train','--obstacles','4','--num-envs','8','--iterations','500','--log-dir','logs/grid_obstacles')
 
 # Inspect a checkpoint you have trained.
-python view_navigation.py --checkpoint logs/grid_obstacles/final.pt
+python -m mentorpi_nav.cli.view --checkpoint logs/grid_obstacles/final.pt
 
 # Evaluate a checkpoint on complete episodes.
-python evaluate_suite.py --checkpoint logs/grid_obstacles/final.pt --scenario-file scenarios/original_four.json --seeds 456 789 2026 --episodes 200 --output logs/evaluation
+python -m mentorpi_nav.cli.evaluate --checkpoint logs/grid_obstacles/final.pt --scenario-file scenarios/original_four.json --seeds 456 789 2026 --episodes 200 --output logs/evaluation
 
 # Run local regression tests in the configured Python environment.
 python -m unittest discover -s tests -v
@@ -86,19 +88,19 @@ Checkpoints must retain their neighboring task/agent manifests. The example trai
 
 The code under `deployment/` targets a particular MentorPi hardware/software stack. Review device names, ROS topics, paths, service files, sensor calibration, and board serial selection for your robot before use.
 
-`robot-ssh.ps1` expects ignored, locally created connection settings and Windows DPAPI credentials under `.local/`; no credentials are supplied. SSH transport uses Paramiko. Policy export additionally uses ONNX; serial probes use PySerial; observer-camera scripts use OpenCV.
+`scripts/robot-ssh.ps1` expects ignored, locally created connection settings and Windows DPAPI credentials under `.local/`; no credentials are supplied. SSH transport uses Paramiko. Policy export additionally uses ONNX; serial probes use PySerial; observer-camera scripts use OpenCV.
 
 The current prototype uses **LiDAR scan → local occupancy grid**, together with goal, measured velocity, and previous action, to infer body-velocity commands. No saved map or camera is needed in local mode. RF2O LiDAR odometry and IMU-assisted orientation track progress; arrival means within 0.15 m, with no final heading requirement.
 
-On the configured Pi, supply a goal in metres (forward, left):
+On the Pi with this checkout and its updated service installed, run from the repository root and supply a goal in metres (forward, left):
 
 ```bash
-sudo python3 /home/pi/docker/tmp/mentorpi_nav/run_policy_check.py --goal-relative 1 0
+sudo python3 -m mentorpi_nav.robot --goal-relative 1 0
 ```
 
 The command starts automatically after model/sensor initialization. Ctrl+C stops it. Optional `--seconds` and `--max-displacement` set run limits; neither has a default cap. Per the prototype configuration, obstacle avoidance is left to the policy: the external collision monitor and distance-stop override are removed. Command/sensor timeouts, speed limits, and the no-measured-motion detector remain. The policy can reverse or stall, and accepting a distant goal does not establish reliable long-range navigation.
 
-Hardware wheel mapping, translation, turning, and one goal arrival have been observed; general obstacle avoidance is not yet established. See [deployment details](ROBOT_DEPLOYMENT.md) and [prototype instructions](AGENTS.md). The older saved-map trial mode remains separate from this direct local-goal entry point.
+Hardware wheel mapping, translation, and turning have been observed. The four videos show operator-confirmed goal arrivals; general obstacle avoidance is not yet established. See [deployment details](ROBOT_DEPLOYMENT.md) and [prototype instructions](AGENTS.md). The obsolete saved-map trial path and one-off deployment probes have been removed; earlier versions remain in Git history.
 
 ## References
 

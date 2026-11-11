@@ -1,9 +1,6 @@
-import sys
-from pathlib import Path
 import unittest
 import numpy as np
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'deployment/runtime'))
-from live_occupancy import live_occupancy_from_scan
+from mentorpi_nav.robot.live_occupancy import live_occupancy_from_scan
 
 class LiveOccupancyTests(unittest.TestCase):
     def test_wall_clears_visible_ray_blocks_hit_and_leaves_occlusion_unknown(self):

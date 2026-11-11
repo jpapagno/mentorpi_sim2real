@@ -29,6 +29,6 @@ Global-path results are distinct from direct-goal performance and physical deplo
 
 Raspberry Pi 5, TorchScript export of the later policy: maximum action difference approximately 1.20e-6 across 32 golden cases. Under the running stack, 300 inference calls gave p95 5.20 ms and maximum 7.19 ms.
 
-Live LiDAR/IMU streams, mapping/localization, global planning, policy inference, and stationary command watchdog behavior were checked. Physical wheel response is unresolved; no successful autonomous 30-goal hardware session has been completed. Sensor noise, moving obstacles, and full physical transfer are not established by these simulation results.
+Live LiDAR/IMU streams, policy inference, wheel translation and turning have been checked. The README includes four operator-confirmed physical goal arrivals. No successful autonomous 30-goal hardware session has been completed; sensor noise, moving obstacles, and reliable general obstacle avoidance are not established by these simulation results.
 
 Counts are transcribed from local experiment records. Generated episode traces and checkpoints are excluded from this source publication. The included CSV records historical experiments; it does not include every later deployment experiment.

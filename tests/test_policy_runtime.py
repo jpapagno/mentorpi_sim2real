@@ -1,6 +1,6 @@
 import unittest
 import torch
-from deployment.runtime.policy_runtime import warm_actor
+from mentorpi_nav.robot.policy_runtime import warm_actor
 
 class PolicyRuntimeTests(unittest.TestCase):
     def test_warms_real_input_contract_before_timing(self):
