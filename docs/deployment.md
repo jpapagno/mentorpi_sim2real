@@ -82,7 +82,7 @@ The service starts disarmed and launches `deployment/navigation.launch.py`; the 
 
 SSH transport is `mentorpi_nav.tools.ssh`; the Windows wrapper `scripts/robot-ssh.ps1` loads ignored local connection settings and Windows-protected credentials. Simulation, robot inference and SSH dependencies are separate environments.
 
-See [results](results.md) for measured evidence and [Trial 1 in the README](../README.md#2-real-robot-around-an-obstacle) for the first task's physical demonstration.
+See [results](results.md) for measured evidence and the [latest hardware demonstration](../README.md#latest-deployment--november-20-2026) for a side-by-side comparison with simulation.
 
 ## Laptop webcam observation
 

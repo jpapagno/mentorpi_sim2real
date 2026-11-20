@@ -67,7 +67,9 @@ Global-path results are distinct from direct-goal performance and physical deplo
 
 Raspberry Pi 5, TorchScript export of the later policy: maximum action difference approximately 1.20e-6 across 32 golden cases. Under the running stack, 300 inference calls gave p95 5.20 ms and maximum 7.19 ms.
 
-Live LiDAR/IMU streams, policy inference, wheel translation and turning have been checked. Four recorded runs have operator-confirmed goal arrivals; the README features Trial 1. No successful autonomous 30-goal hardware session has been completed; sensor noise, moving obstacles, and reliable general obstacle avoidance are not established by these simulation results.
+Live LiDAR/IMU streams, policy inference, wheel translation and turning were checked. The operator confirmed goal arrivals in all four original recordings. [Trial 1](media/deployment/trial-1.mp4?raw=true) · [Trial 2](media/deployment/trial-2.mp4?raw=true) · [Trial 3](media/deployment/trial-3.mp4?raw=true) · [Trial 4](media/deployment/trial-4.mp4?raw=true)
+
+The 30-goal autonomous hardware milestone is still open. Moving obstacles and reliable obstacle avoidance across layouts need dedicated physical trials.
 
 Counts are transcribed from local experiment records. Generated episode traces and checkpoints are excluded from this source publication. The [historical experiment CSV](../navigation_goal_results.csv) does not include every later deployment experiment.
 
@@ -98,3 +100,44 @@ with batch size. No new training or hardware deployment was performed for this
 baseline. Checkpoint identity, scenario settings, full episode records and
 replays are retained in the ignored local experiment directory
 `logs/planar_baseline_20261115_01/`.
+
+## Doorway replays and real deployment · November 20, 2026
+
+The two new simulation recordings use `model_7150000.pt` and its task
+manifest. The saved actor ran a direct-goal policy on CPU without exploration
+noise. Both replays use the `narrow_doors` entry as the scene override and
+keep the checkpoint's sensor and motion settings. [Training scenario](../scenarios/lidar_translation_varied_forever.json)
+
+Checkpoint SHA-256
+`fe2e8ce0f2082851d0586803f20c6db89d56e1974529b2f0b44744333b3b6399`.
+
+| Replay | Seed | Door width | Outcome | Simulated time | Final goal distance |
+| --- | ---: | ---: | --- | ---: | ---: |
+| [Doorway arrival](media/simulation/2026-11-20/doorway-goal.mp4?raw=true) | 2027 | 0.548 m | Reached the 0.15 m arrival radius | 8.05 s | 0.148 m |
+| [Doorway timeout](media/simulation/2026-11-20/doorway-timeout.mp4?raw=true) | 456 | 0.534 m | Timed out | 60.00 s | 0.690 m |
+
+These are selected replays from the training scene family. The timeout video
+plays at 4× with a simulated clock. At the checkpoint save, the latest 100
+simulated training episodes with exploration noise included 92 goal arrivals,
+5 collisions, and 3 timeouts. The mean episode return was 92.76.
+
+The checkpoint was deployed under the `7.15m` alias. The physical doorway was
+roughly twice the robot's width. The [side-by-side video](media/simulation/2026-11-20/doorway-sim-to-real.mp4?raw=true)
+pairs the hesitant success with seed 2027, an independently generated doorway.
+The seven camera takes below are exploratory recordings, with outcomes labeled
+from the original filenames.
+
+| Recording | Original take |
+| --- | --- |
+| [Hesitant success](media/deployment/2026-11-20/doorway-success.mp4?raw=true) | `success_hesitent.MOV` |
+| [Success with cord contact](media/deployment/2026-11-20/goal-with-cord-contact.mp4?raw=true) | `success_cord_hit_colision.MOV` |
+| [Collision 1](media/deployment/2026-11-20/collision-1.mp4?raw=true) | `colision.MOV` |
+| [Collision 2](media/deployment/2026-11-20/collision-2.mp4?raw=true) | `collision.MOV` |
+| [Collision 3](media/deployment/2026-11-20/collision-3.mp4?raw=true) | `colision (2).MOV` |
+| [Hardware failure](media/deployment/2026-11-20/hardware-failure.mp4?raw=true) | `hardware_fail.MOV` |
+| [Back-and-forth failure](media/deployment/2026-11-20/back-and-forth.mp4?raw=true) | `back_and_forth_deployement_fail.mov` |
+
+In a logged run from this phase, alternating commands produced about 2 mm of
+net measured travel before the controller disarmed on its no-motion check.
+The hardware session also included a connection interruption. The timing of
+the last robot command during the interruption remains unverified.
