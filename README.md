@@ -24,7 +24,9 @@ I wanted to try reinforcement learning on a real robot, and I chose Isaac Lab be
 
 https://github.com/user-attachments/assets/8913a497-2345-4705-b66d-14d11ed62555
 
-I like to start small and iterate. For this first task, I needed the robot to move in a plane, see nearby obstacles, and register a collision when it hit one. The early Isaac demo already used analytic motion. I took that idea further and moved the training loop into a lightweight Python and PyTorch simulator that could raycast LiDAR and check collisions against the same 2D shapes. That let me focus on what the policy could learn from the scan. [2D simulator](docs/planar.md)
+I like to start small and iterate. For this first task, what mattered was how the real MentorPi moved in response to a drive command. I switched to a lightweight Python simulator so I could start with a simple model of that motion and refine it using measurements from the robot. Modeling exactly how each mecanum roller contacted the floor could wait.
+
+The early Isaac demo already used analytic motion. I kept that approach in Python and used the same 2D shapes for LiDAR raycasts and collision checks. [2D simulator](docs/planar.md)
 
 ## The grid became another thing to get right
 
