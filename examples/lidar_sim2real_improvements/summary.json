@@ -1,0 +1,31 @@
+{
+  "seed": 42,
+  "geometry_note": "New clutter sampled by training layout sampler; nearest obstacle placed forward by camera/body yaw only. Old scene is previous sparse illustration; real room differs.",
+  "noise_std_m": 0.007291062784087318,
+  "independent_dropout": 0.09686649901743992,
+  "persistent_sector_rays": 13,
+  "obstacle_circles": 56,
+  "start_nearest_surface_m": 0.3356058895587921,
+  "panels": [
+    {
+      "name": "previous",
+      "mean_free_fraction": 0.344249,
+      "mean_changed_fraction_per_scan": 0.0030313131313131313
+    },
+    {
+      "name": "clutter_clean",
+      "mean_free_fraction": 0.1987,
+      "mean_changed_fraction_per_scan": 0.0
+    },
+    {
+      "name": "clutter_noisy",
+      "mean_free_fraction": 0.198367,
+      "mean_changed_fraction_per_scan": 0.006797979797979798
+    },
+    {
+      "name": "hardware",
+      "mean_free_fraction": 0.121229,
+      "mean_changed_fraction_per_scan": 0.008667676767676769
+    }
+  ]
+}

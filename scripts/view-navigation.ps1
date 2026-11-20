@@ -1,6 +1,7 @@
+[CmdletBinding(PositionalBinding=$false)]
 param(
     [string]$LabRoot = "$env:USERPROFILE\Desktop\mentorpi\IsaacLab",
-    [Parameter(ValueFromRemainingArguments=$true)] [string[]]$ViewerArgs
+    [Parameter(Position=0, ValueFromRemainingArguments=$true)] [string[]]$ViewerArgs
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent

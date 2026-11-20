@@ -1,0 +1,104 @@
+{
+  "obstacle_count": 0,
+  "min_obstacles": null,
+  "layout_mode": "random",
+  "actuator_scale_range": null,
+  "occupancy_source": "lidar",
+  "drive_model": "mecanum_v1",
+  "action_delay_steps": 2,
+  "grid_resolution": 0.1,
+  "episode_seconds": 60.0,
+  "collision_penalty": 100,
+  "success_reward": 100,
+  "progress_reward_scale": 10.0,
+  "clearance_penalty": 0.1,
+  "clearance_distance": 0.2,
+  "lidar_noise_std_range": [
+    0.0005,
+    0.002
+  ],
+  "lidar_dropout_range": [
+    0.05,
+    0.07
+  ],
+  "lidar_dropout_sectors": 0,
+  "lidar_outlier_probability": 0.0,
+  "scene_spec": {
+    "layout": "rooms",
+    "door_width_range": [
+      0.45,
+      0.65
+    ],
+    "door_center_range": [
+      -0.1,
+      0.1
+    ],
+    "wall_x_range": [
+      -0.05,
+      0.05
+    ],
+    "wall_thickness": 0.08,
+    "rectangle_count_range": [
+      0,
+      1
+    ],
+    "rectangle_size_range": [
+      0.12,
+      0.22
+    ],
+    "concave_count_range": [
+      0,
+      0
+    ],
+    "post_count_range": [
+      0,
+      1
+    ],
+    "post_radius_range": [
+      0.025,
+      0.04
+    ]
+  },
+  "arena_half_extent": 0.85,
+  "goal_normalization_half_extent": 2.0,
+  "robot_size": [
+    0.254,
+    0.2032
+  ],
+  "robot_radius": 0.16263935563079435,
+  "min_goal_distance": 0.5,
+  "policy_input": "laser_sectors",
+  "reward_mode": "td3_mecanum",
+  "translation_only": true,
+  "command_limits": [
+    0.1,
+    0.1,
+    0.3
+  ],
+  "translation_response": {
+    "version": "translation_history_v1",
+    "directions": {
+      "forward": {
+        "gain": 1.0677754097880694,
+        "deadband_mps": 0.011340771493678098
+      },
+      "backward": {
+        "gain": 1.008861601052319,
+        "deadband_mps": 0.0060213247094533275
+      },
+      "left": {
+        "gain": 0.8782246692205633,
+        "deadband_mps": 0.0003386675876297894
+      },
+      "right": {
+        "gain": 0.9413614773877308,
+        "deadband_mps": 0.00011818666496116528
+      }
+    },
+    "breakaway_distance_m": [
+      0.014254039919548381,
+      0.016067216710434633
+    ],
+    "idle_memory_decay_s": 10.0
+  }
+}

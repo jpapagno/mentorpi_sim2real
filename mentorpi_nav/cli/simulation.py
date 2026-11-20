@@ -5,8 +5,11 @@ Use the Isaac Lab venv interpreter, not the system Python.
 
 import argparse
 from dataclasses import replace
+import itertools
 import json
+import pickle
 from pathlib import Path
+import time
 from datetime import datetime
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -29,7 +32,9 @@ def main():
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--fixed-learning-rate", action="store_true", help="Disable adaptive learning-rate increases during fine-tuning")
     parser.add_argument("--entropy-coef", type=float, default=.005)
-    parser.add_argument("--steps", type=int, default=300)
+    parser.add_argument("--steps", type=int, default=300, help="Evaluation/smoke steps; 0 runs evaluation until the window closes")
+    parser.add_argument("--follow", action="store_true", help="Evaluation: reload stable new checkpoints from the supplied checkpoint's directory")
+    parser.add_argument("--realtime", action="store_true", help="Pace evaluation to simulation time for watching")
     parser.add_argument("--iterations", type=int, default=500)
     parser.add_argument("--save-every", type=int, default=25, help="Save a policy checkpoint every X PPO iterations")
     parser.add_argument("--seed", type=int, default=42)
@@ -40,8 +45,10 @@ def main():
     args = parser.parse_args()
     if args.mode == "evaluate" and not args.checkpoint:
         parser.error("--mode evaluate requires --checkpoint")
-    if min(args.steps, args.iterations, args.num_envs, args.save_every) < 1:
-        parser.error("steps, iterations, num-envs, and save-every must be positive")
+    if min(args.iterations, args.num_envs, args.save_every) < 1 or args.steps < 0 or (args.steps == 0 and args.mode != 'evaluate'):
+        parser.error("iterations, num-envs, save-every and smoke steps must be positive; evaluation steps may be 0")
+    if args.follow and args.mode != 'evaluate':
+        parser.error('--follow requires --mode evaluate and --checkpoint')
 
     import torch
     from mentorpi_nav.lab_env import MentorPiEnv, MentorPiEnvCfg
@@ -50,6 +57,12 @@ def main():
     from rsl_rl.runners import OnPolicyRunner
 
     cfg = MentorPiEnvCfg()
+    source_manifest = None
+    if args.checkpoint:
+        source_manifest = json.loads(Path(args.checkpoint).resolve().with_name("task.json").read_text(encoding="utf-8"))
+        if args.mode == 'evaluate':
+            from mentorpi_nav.core import NavigationCfg
+            cfg.navigation = NavigationCfg(**source_manifest['navigation'])
     cfg.seed = args.seed
     cfg.sim.device = args.device or "cuda:0"
     cfg.scene.num_envs = args.num_envs
@@ -60,9 +73,7 @@ def main():
         if value is not None:
             cfg.navigation = replace(cfg.navigation, **{name: value})
     cfg.asset_path = args.asset
-    source_manifest = None
     if args.checkpoint:
-        source_manifest = json.loads(Path(args.checkpoint).resolve().with_name("task.json").read_text(encoding="utf-8"))
         if args.mode == "train" and source_manifest.get("training_method") in {"behavior_cloning", "dagger"} and not args.transfer_scenario:
             parser.error("Supervised checkpoints require --transfer-scenario for PPO with a fresh optimizer")
     agent_cfg = MentorPiPPOCfg()
@@ -119,9 +130,41 @@ def main():
                 save_grid_preview(env.nav, log_dir / "occupancy.png")
                 successes = collisions = timeouts = episodes = 0
                 executed_steps = 0
-                for _ in range(args.steps):
+                loaded_fingerprint = None
+                watched_fingerprint = None
+                next_poll = 0.
+                follow_error = None
+                if args.follow:
+                    from mentorpi_nav.cli.view import checkpoint_choices
+                    path = Path(args.checkpoint).resolve()
+                    stat = path.stat()
+                    loaded_fingerprint = (str(path), stat.st_size, stat.st_mtime_ns)
+                for _ in itertools.count() if args.steps == 0 else range(args.steps):
                     if not env.sim.is_running():
                         break
+                    started_step = time.perf_counter()
+                    if args.follow and started_step >= next_poll:
+                        next_poll = started_step + 2.
+                        try:
+                            latest = max(checkpoint_choices(path.parent), key=lambda p: p.stat().st_mtime_ns)
+                            stat = latest.stat()
+                            fingerprint = (str(latest), stat.st_size, stat.st_mtime_ns)
+                            if fingerprint == watched_fingerprint and fingerprint != loaded_fingerprint:
+                                _validate_checkpoint(latest, manifest)
+                                # Construct before replacing; incomplete saves are retried.
+                                with torch.inference_mode():
+                                    replacement = load_actor(latest, obs, cfg.sim.device)
+                                    replacement_obs, _ = env.reset()
+                                policy = replacement
+                                obs = replacement_obs
+                                follow_error = None
+                                loaded_fingerprint = fingerprint
+                                print(f'Following checkpoint: {latest.name}; starting new episodes', flush=True)
+                            watched_fingerprint = fingerprint
+                        except (OSError, ValueError, RuntimeError, EOFError, KeyError, pickle.UnpicklingError) as error:
+                            if str(error) != follow_error:
+                                print(f'Waiting for a compatible, complete checkpoint: {error}', flush=True)
+                                follow_error = str(error)
                     with torch.inference_mode():
                         if policy:
                             from tensordict import TensorDict
@@ -138,6 +181,11 @@ def main():
                         collisions += int(env.outcomes["collision"].sum())
                         timeouts += int(truncated.sum())
                         episodes += int((terminated | truncated).sum())
+                    if args.follow and (terminated | truncated).any():
+                        print(json.dumps(dict(episodes=episodes, successes=successes, collisions=collisions,
+                                              timeouts=timeouts, checkpoint=loaded_fingerprint[0])), flush=True)
+                    if args.realtime:
+                        time.sleep(max(0., cfg.navigation.dt - (time.perf_counter()-started_step)))
                 result = dict(mode=args.mode, seed=args.seed, steps_executed=executed_steps, completed_episodes=episodes,
                               successes=successes, collisions=collisions, timeouts=timeouts,
                               success_rate=successes / episodes if episodes else None)

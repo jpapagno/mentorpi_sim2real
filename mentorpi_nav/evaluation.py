@@ -32,6 +32,8 @@ def evaluate_actor(actor, cfg, seed, episodes=200, device="cpu", episode_seconds
     initial_yaw = state.yaw.clone()
     initial_obstacles = state.obstacles.clone()
     initial_valid = state.valid.clone()
+    initial_polygons = state.polygons.clone()
+    initial_polygon_counts = state.polygon_counts.clone()
     initial_distance = torch.linalg.vector_norm(state.goal - state.xy, dim=-1)
     active = torch.ones(episodes, dtype=torch.bool, device=device)
     success = torch.zeros_like(active)
@@ -64,6 +66,7 @@ def evaluate_actor(actor, cfg, seed, episodes=200, device="cpu", episode_seconds
         "steps": steps, "initial_distance": initial_distance, "final_distance": final_distance,
         "path_length": path_length, "start": initial_xy, "goal": initial_goal, "yaw": initial_yaw,
         "obstacles": initial_obstacles, "valid": initial_valid,
+        "polygons":initial_polygons, "polygon_counts":initial_polygon_counts,
     }.items()}
     for i in range(episodes):
         rows.append({name: values[i] for name, values in arrays.items()})

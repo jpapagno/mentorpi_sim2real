@@ -25,6 +25,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     add_arguments(parser)
     parser.add_argument('--tag',default='policy')
+    parser.add_argument('--policy',default='active',help='Installed model alias from models/catalog.json')
     args=parser.parse_args()
     validate(parser,args)
     if not args.tag.replace('_','').isalnum():parser.error('Simple log tag required')
@@ -32,8 +33,17 @@ def main():
     (ROOT/'diagnostics').mkdir(exist_ok=True)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
-    actor=torch.jit.load(str(ROOT/'models/policy.ts')).eval()
-    warmup=warm_actor(actor)
+    from .policy_selection import resolve_policy
+    model_dir=resolve_policy(ROOT,args.policy)
+    actor=torch.jit.load(str(model_dir/'policy.ts')).eval()
+    contract_path=model_dir/'contract.json'
+    contract=json.loads(contract_path.read_text()) if contract_path.exists() else {}
+    sector_input=contract.get('architecture')=='laser_sector_td3_v1'
+    if sector_input:
+        from .laser_sectors import CONTRACT,OBS_SIZE
+        if contract.get('observation_contract')!=CONTRACT or contract.get('policy_shape')!=[1,OBS_SIZE] or contract.get('speed_limits')!=[.2,.2,.5]:
+            raise ValueError('Incompatible laser sector deployment contract')
+    warmup=warm_actor(actor,sector_input=sector_input)
     print(json.dumps({'event':'POLICY_WARMED',**warmup}),flush=True)
     import fcntl
     session_lock=(ROOT/'policy_session.lock').open('w')
@@ -46,7 +56,7 @@ def main():
     def receive(msg):
         laser[:]=[(time.monotonic(),msg)]
     node.create_subscription(Odometry,'/odom_rf2o',receive,10)
-    result={'mode':'goal_policy','velocity_source':'installed_actor_only',
+    result={'selected_policy':args.policy,'model_directory':str(model_dir),'mode':'goal_policy','velocity_source':'installed_actor_only',
             'limits':{'seconds':args.seconds,'max_displacement_m':args.max_displacement,'linear_mps':.1,'yaw_radps':.3},
             'trace':[],'passed':False}
     result['warmup']=warmup
@@ -102,9 +112,11 @@ def main():
                 stop_reason='displacement_limit';break
             if np.linalg.norm(goal-base[:2])<.15:
                 stop_reason='goal_reached';break
-            state,grid,details=node.observations(goal,previous)
+            if sector_input:state,details=node.sector_observations(goal,previous)
+            else:state,grid,details=node.observations(goal,previous)
             inference_started=time.perf_counter()
-            with torch.no_grad():action=actor(torch.from_numpy(state),torch.from_numpy(grid)).numpy()[0]
+            with torch.no_grad():
+                action=(actor(torch.from_numpy(state)) if sector_input else actor(torch.from_numpy(state),torch.from_numpy(grid))).numpy()[0]
             inference_ms=(time.perf_counter()-inference_started)*1000
             if inference_ms>100:raise RuntimeError('Inference exceeded 100 ms; no new motor command sent')
             drain_until=time.monotonic()+.01

@@ -35,6 +35,32 @@ class DeploymentActor(nn.Module):
         return (self.mlp(latent)+prior).clamp(-1,1)
 
 
+def export_sector(source,output,manifest):
+    from mentorpi_nav.robot.laser_sectors import CONTRACT,OBS_SIZE,RANGE_SCALE,GOAL_SCALE
+    state=NavigationState(16,NavigationCfg(**manifest['navigation']),seed=89001);state.reset()
+    obs=state.observations()
+    actor=load_actor(source,obs).actor.eval()
+    exported=torch.jit.script(actor)
+    with torch.no_grad():
+        expected=actor(obs['policy']);actual=exported(obs['policy'])
+        torch.testing.assert_close(actual,expected)
+    exported.save(str(output/'policy.ts'))
+    torch.onnx.export(actor,(obs['policy'][:1],),str(output/'policy.onnx'),input_names=['policy'],
+        output_names=['action'],opset_version=17,dynamo=False,dynamic_axes={'policy':{0:'batch'},'action':{0:'batch'}})
+    import onnx
+    onnx.checker.check_model(str(output/'policy.onnx'))
+    np.savez_compressed(output/'parity_cases.npz',policy=obs['policy'].numpy(),action=expected.numpy())
+    import hashlib
+    contract={'architecture':'laser_sector_td3_v1','observation_contract':CONTRACT,'source_checkpoint':str(source),
+        'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'policy_shape':[1,OBS_SIZE],
+        'action_shape':[1,3],'sector_count':36,'sector_range_scale_m':RANGE_SCALE,
+        'goal_normalization_m':GOAL_SCALE,'bearing_normalization':'radians/pi',
+        'sector_order':'-pi to pi counterclockwise in body frame','unknown_sector':0,
+        'speed_limits':manifest['navigation']['speed_limits'],'dt':manifest['navigation']['dt'],
+        'training_navigation':manifest['navigation'],'torch_export_max_error':float((actual-expected).abs().max())}
+    (output/'contract.json').write_text(json.dumps(contract,indent=2));print(json.dumps(contract,indent=2))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--checkpoint',default='logs/mentorpi_navigation_best/final.pt')
@@ -45,6 +71,9 @@ def main():
     output=Path(args.output).resolve()
     output.mkdir(parents=True,exist_ok=True)
     manifest=json.loads(source.with_name('task.json').read_text())
+    if manifest.get('network_architecture')=='laser_sector_td3_v1':
+        export_sector(source,output,manifest)
+        return
     if manifest.get('network_architecture')!='goal_residual_cnn_v1':
         raise ValueError('Exporter supports goal_residual_cnn_v1 only')
     state=NavigationState(32,NavigationCfg(**manifest['navigation']),seed=89001)
@@ -71,6 +100,7 @@ def main():
         'occupancy_resolution_m':.05,'goal_normalization_m':4*math.sqrt(2),
         'speed_limits':[.2,.2,.5],'occupancy_inflation_m':0.,
         'grid_top':'forward','grid_left':'left','unknown':'blocked',
+        'training_navigation':manifest['navigation'],
         'torch_export_max_error':float((actual-expected).abs().max())}
     (output/'contract.json').write_text(json.dumps(contract,indent=2))
     print(json.dumps(contract,indent=2))

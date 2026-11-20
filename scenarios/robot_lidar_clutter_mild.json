@@ -1,0 +1,49 @@
+{
+  "max_obstacles": 64,
+  "obstacle_count": 64,
+  "min_obstacles": 36,
+  "layout_mode": "clutter",
+  "grid_resolution": 0.1,
+  "planning_margin": 0.02,
+  "start_obstacle_distance_range": [
+    0.3,
+    0.7
+  ],
+  "min_goal_distance": 1.0,
+  "episode_seconds": 60.0,
+  "progress_reward_scale": 10.0,
+  "success_reward": 20.0,
+  "collision_penalty": 75.0,
+  "clearance_penalty": 0.1,
+  "clearance_distance": 0.2,
+  "actuator_scale_range": [
+    0.6,
+    1.0
+  ],
+  "action_delay_steps": 2,
+  "drive_model": "mecanum_v1",
+  "occupancy_source": "lidar",
+  "lidar_rays": 500,
+  "lidar_origin": [
+    -0.012242,
+    -8.533e-05
+  ],
+  "lidar_range_min": 0.02,
+  "lidar_range_max": 25.0,
+  "lidar_scan_period": 0.1,
+  "lidar_noise_std_range": [
+    0.0005,
+    0.002
+  ],
+  "lidar_dropout_range": [
+    0.05,
+    0.07
+  ],
+  "lidar_dropout_sectors": 0,
+  "lidar_dropout_sector_degrees": [
+    1.0,
+    5.0
+  ],
+  "lidar_outlier_probability": 0.0,
+  "lidar_outlier_error": 0.08
+}

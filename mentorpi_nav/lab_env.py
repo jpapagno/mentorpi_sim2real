@@ -60,6 +60,7 @@ class MentorPiEnv(DirectRLEnv):
         light = UsdLux.DistantLight.Define(stage, "/World/Sun")
         light.CreateIntensityAttr(2500)
         self._visuals = []
+        self._polygon_visuals = []
         # Only draw a few environments; every training environment still has
         # its own independent tensor state and collision geometry.
         for i in range(min(self.cfg.visual_envs, self.num_envs)):
@@ -93,8 +94,12 @@ class MentorPiEnv(DirectRLEnv):
                     ):
                         raise ValueError("Visual asset still has physics enabled; use its Physics=none variant")
             else:
-                self._shape(stage, root + "/Robot/Body", "cylinder", (0, 0, 0.07),
-                            (self.cfg.navigation.robot_radius, 0.14), (0.1, 0.5, 0.9))
+                if self.cfg.navigation.robot_size is not None:
+                    self._shape(stage,root+'/Robot/Body','cube',(0,0,.07),
+                                (*self.cfg.navigation.robot_size,.14),(.1,.5,.9))
+                else:
+                    self._shape(stage, root + "/Robot/Body", "cylinder", (0, 0, 0.07),
+                                (self.cfg.navigation.robot_radius, 0.14), (0.1, 0.5, 0.9))
             self._shape(stage, root + "/Robot/Heading", "cube", (0.13, 0, 0.17),
                         (0.1, 0.02, 0.02), (0.2, 0.9, 1.0))
             goal = self._shape(stage, root + "/Goal", "sphere", (0, 0, 0.04),
@@ -104,6 +109,8 @@ class MentorPiEnv(DirectRLEnv):
                 obstacle_ops.append(self._shape(stage, f"{root}/Obstacle{j}", "cylinder", (0, 0, -2),
                     (self.cfg.navigation.obstacle_radius, 0.4), (0.85, 0.25, 0.12)))
             self._visuals.append((robot_pos, robot_rot, goal, obstacle_ops))
+            self._polygon_visuals.append([UsdGeom.Mesh.Define(stage,f'{root}/Polygon{j}')
+                                          for j in range(self.cfg.navigation.max_polygons)])
 
     @staticmethod
     def _shape(stage, path, kind, position, size, color):
@@ -142,6 +149,15 @@ class MentorPiEnv(DirectRLEnv):
                 visible = bool(self.nav.valid[i, j])
                 self._move_prim(prim, (*obstacles[i][j][:2], 0.2) if visible else (0, 0, -2))
                 UsdGeom.Cylinder(prim).GetRadiusAttr().Set(obstacles[i][j][2] if visible else self.cfg.navigation.obstacle_radius)
+            for mesh,vertices,count in zip(self._polygon_visuals[i],self.nav.polygons[i].cpu().tolist(),self.nav.polygon_counts[i].cpu().tolist()):
+                vertices=vertices[:count]
+                mesh.CreatePointsAttr([Gf.Vec3f(x,y,z) for z in (0.,.4) for x,y in vertices])
+                faces=([list(reversed(range(count))),list(range(count,2*count))]+
+                       [[j,(j+1)%count,(j+1)%count+count,j+count] for j in range(count)]) if count else []
+                mesh.CreateFaceVertexCountsAttr([len(face) for face in faces])
+                mesh.CreateFaceVertexIndicesAttr([index for face in faces for index in face])
+                mesh.CreateSubdivisionSchemeAttr('none')
+                mesh.CreateDisplayColorAttr([Gf.Vec3f(.85,.25,.12)])
 
     @staticmethod
     def _move_prim(prim, position):
@@ -191,4 +207,5 @@ class MentorPiEnv(DirectRLEnv):
         return {"navigation": asdict(self.cfg.navigation), "observation_size": self.cfg.observation_space,
                 "occupancy_shape": [1, self.cfg.navigation.occupancy_size, self.cfg.navigation.occupancy_size],
                 "occupancy_frame": "robot_forward_up_left_left", "occupancy_values": {"free": 0, "occupied": 1},
+                "occupancy_source": self.cfg.navigation.occupancy_source,
                 "asset_path": self.cfg.asset_path, "model": "analytic_swept_disc_occupancy_v2"}

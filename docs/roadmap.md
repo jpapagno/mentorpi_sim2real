@@ -16,6 +16,14 @@ MentorPi is a platform for a sequence of sim-to-real learning tasks. Each task s
 
 ## Sim-to-real progression
 
+Task01 also has an experimental current-scan laser-sector TD3 variant:36laser
+distances plus normalized goal distance/bearing and previous3actions feed a
+41-float MLP input. Outputs retain forward, sideways and yaw velocity. It is
+evaluated by direct-goal success, collision and timeout rates on fixed complete
+episodes; no map or global planner is supplied. See[the planar guide](planar.md)
+for the versioned observation, reward and export contract. Hardware performance
+of this variant has not been established.
+
 For each planned task, first make the relevant physical effect explicit in simulation, then train on a documented range of conditions and evaluate on held-out cases. Transfer the same policy interface to hardware and compare task metrics and failure modes before widening the operating conditions.
 
 The current model is analytic planar motion with optional mecanum response limits, actuator scaling and delay. Task 02 and Task 03 require a model of wheel-ground friction and slip, or contact-based simulation; adding a friction label to an unchanged model would not establish surface transfer. Moving obstacles, sensor degradation and final-heading control also require task/environment changes and are not current capabilities.

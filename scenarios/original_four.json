@@ -1,4 +1,7 @@
 {
+  "scene_spec": null,
+  "occupancy_source": "geometry",
+  "drive_model": "body",
   "obstacle_count": 4,
   "actuator_scale_range": null,
   "action_delay_steps": 0,

@@ -32,8 +32,9 @@ def dense_path(path):
 def evaluate(actor,cfg,seed,episodes,device,lookahead):
     state=NavigationState(episodes,cfg,device,seed);state.reset()
     paths=[]
-    for start,goal,obstacles,valid in zip(state.xy.cpu().tolist(),state.goal.cpu().tolist(),state.obstacles.cpu().tolist(),state.valid.cpu().tolist()):
-        route=plan_path(start,goal,[o for o,v in zip(obstacles,valid) if v],cfg)
+    for i,(start,goal,obstacles,valid) in enumerate(zip(state.xy.cpu().tolist(),state.goal.cpu().tolist(),state.obstacles.cpu().tolist(),state.valid.cpu().tolist())):
+        polygons=[p[:n] for p,n in zip(state.polygons[i].cpu().tolist(),state.polygon_counts[i].cpu().tolist()) if n]
+        route=plan_path(start,goal,[o for o,v in zip(obstacles,valid) if v],cfg,polygons=polygons)
         paths.append(dense_path(route) if route else None)
     active=torch.tensor([p is not None for p in paths],device=device,dtype=torch.bool)
     success=torch.zeros_like(active);collision=torch.zeros_like(active)

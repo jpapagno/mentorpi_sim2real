@@ -1,10 +1,24 @@
 import random
+from dataclasses import asdict
+import json
+from pathlib import Path
 import unittest
 import torch
 from mentorpi_nav.core import NavigationCfg,NavigationState,sample_layout
 
 
 class RobotTrainingScenarioTests(unittest.TestCase):
+    def test_noise_comparison_keeps_scene_and_dynamics_identical(self):
+        root = Path(__file__).resolve().parents[1] / 'scenarios'
+        high = NavigationCfg(**json.loads((root/'robot_lidar_clutter.json').read_text()))
+        low = NavigationCfg(**json.loads((root/'robot_lidar_clutter_mild.json').read_text()))
+        differing = {k for k, v in asdict(high).items() if v != asdict(low)[k]}
+        self.assertEqual(differing, {'lidar_noise_std_range', 'lidar_dropout_range',
+                                     'lidar_dropout_sectors', 'lidar_outlier_probability'})
+        self.assertLess(low.lidar_noise_std_range[1], high.lidar_noise_std_range[0])
+        self.assertEqual(sample_layout(high, random.Random(41001)),
+                         sample_layout(low, random.Random(41001)))
+
     def test_command_delay_and_partial_reset_isolation(self):
         state=NavigationState(2,NavigationCfg(obstacle_count=0,action_delay_steps=2))
         state.xy.zero_();state.yaw.zero_();state.goal[:]=torch.tensor([1.,0.])

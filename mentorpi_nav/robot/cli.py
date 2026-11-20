@@ -12,15 +12,19 @@ CONTAINER_ROOT='/home/ubuntu/shared/mentorpi_nav'
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     add_arguments(parser)
+    parser.add_argument('--policy',default='active',help='Installed model alias from models/catalog.json')
     parser.add_argument('--stop',action='store_true',help='Stop navigation and motor output')
     args=parser.parse_args()
     if not args.stop:validate(parser,args)
+    if not args.stop:
+        from .policy_selection import resolve_policy
+        resolve_policy(ROOT,args.policy)
     if getattr(os,'geteuid',lambda: -1)()!=0:parser.error('Run with sudo python3 on the Pi')
     service=['systemctl','stop' if args.stop else 'start','mentorpi-navigation.service']
     subprocess.run(service,check=True)
     if args.stop:return 0
     tag='operator_policy_'+uuid.uuid4().hex[:8]
-    command=['python3','-m','mentorpi_nav.robot.policy','--tag',tag]
+    command=['python3','-m','mentorpi_nav.robot.policy','--tag',tag,'--policy',args.policy]
     if args.goal_relative is not None:command+=['--goal-relative',*map(str,args.goal_relative)]
     else:command+=['--goal-odom',*map(str,args.goal_odom)]
     if args.seconds is not None:command+=['--seconds',str(args.seconds)]

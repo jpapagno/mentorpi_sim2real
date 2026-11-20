@@ -99,6 +99,18 @@ class PlaybackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "settings must match"):
             NavigationPlayback(CHECKPOINT, cfg=replace(NavigationCfg(), obstacle_count=8))
 
+    @unittest.skipUnless(CHECKPOINT.exists(), "Requires locally trained checkpoint")
+    def test_explicit_challenge_preserves_training_settings_and_contract(self):
+        scenario=json.loads((Path(__file__).resolve().parents[1]/'scenarios/lidar_box_doorway.json').read_text())
+        session=NavigationPlayback(CHECKPOINT,scenario_overrides=scenario)
+        self.assertIsNone(session.training_cfg.scene_spec)
+        self.assertEqual(session.state.cfg.scene_spec,scenario['scene_spec'])
+        self.assertIn('Challenge scenario',session.scenario_description)
+        session.advance()
+        self.assertTrue(torch.isfinite(session.state.actions).all())
+        with self.assertRaisesRegex(ValueError,'policy contract'):
+            NavigationPlayback(CHECKPOINT,scenario_overrides={'dt':.1})
+
 
 if __name__ == "__main__":
     torch.set_num_threads(1)

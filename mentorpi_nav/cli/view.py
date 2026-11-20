@@ -115,7 +115,8 @@ class NavigationViewer:
     def load_checkpoint(self, path):
         # Construct first so a partly written/invalid checkpoint cannot replace
         # the running session. Reuse the seed for fair visual comparisons.
-        new_session = NavigationPlayback(path, seed=self.seed, obstacle_count=self.session.obstacle_override)
+        new_session = NavigationPlayback(path, seed=self.seed, obstacle_count=self.session.obstacle_override,
+                                         scenario_overrides=self.session.scenario_overrides)
         self.session = new_session
         self.mode.set("policy")
         self.scenario_note.set(new_session.scenario_description)
@@ -201,6 +202,7 @@ class NavigationViewer:
 
     def draw(self):
         state = self.session.state
+        occupancy = state.occupancy_grid()[0,0].cpu().numpy()
         h = state.cfg.arena_half_extent
         scale = 480 / (2*h)
 
@@ -223,6 +225,17 @@ class NavigationViewer:
         for obstacle, valid in zip(state.obstacles[0].cpu().tolist(), state.valid[0].cpu().tolist()):
             if valid:
                 circle(canvas, obstacle[:2], obstacle[2], fill="#dc7754", outline="#b85335", width=2)
+        for vertices,count in zip(state.polygons[0].cpu().tolist(),state.polygon_counts[0].cpu().tolist()):
+            if count:
+                canvas.create_polygon(*[v for p in vertices[:count] for v in pixel(*p)],fill='#dc7754',outline='#b85335',width=2)
+        if state.lidar:
+            xy=state.xy[0].cpu().tolist();yaw=float(state.yaw[0]);c,s=math.cos(yaw),math.sin(yaw)
+            ox,oy=state.cfg.lidar_origin;sensor=[xy[0]+c*ox-s*oy,xy[1]+s*ox+c*oy]
+            for angle,radius in zip(state.lidar.angles.cpu().tolist()[::8],state.lidar.ranges[0].cpu().tolist()[::8]):
+                if math.isfinite(radius):
+                    end=[sensor[0]+radius*math.cos(angle+yaw),sensor[1]+radius*math.sin(angle+yaw)]
+                    if max(abs(v) for v in end)<=h+.03:
+                        canvas.create_line(*pixel(*sensor),*pixel(*end),fill='#a5c3d5')
         if len(self.session.trail) > 1:
             points = [v for xy in self.session.trail for v in pixel(*xy)]
             canvas.create_line(*points, fill="#7ba6c2", width=2)
@@ -231,14 +244,18 @@ class NavigationViewer:
         gx, gy = pixel(*goal)
         canvas.create_text(gx, gy, text="G", fill="#135f35", font=("Segoe UI", 10, "bold"))
         xy = state.xy[0].cpu().tolist()
-        circle(canvas, xy, state.cfg.robot_radius, fill="#2088ce", outline="#125e94", width=2)
+        if state.cfg.robot_size is not None:
+            from mentorpi_nav.geometry import rectangle
+            points=[v for p in rectangle(xy,state.cfg.robot_size,float(state.yaw[0])) for v in pixel(*p)]
+            canvas.create_polygon(*points,fill="#2088ce",outline="#125e94",width=2)
+        else:
+            circle(canvas, xy, state.cfg.robot_radius, fill="#2088ce", outline="#125e94", width=2)
         yaw = float(state.yaw[0])
         rx, ry = pixel(*xy)
         end = pixel(xy[0] + 0.25*math.cos(yaw), xy[1] + 0.25*math.sin(yaw))
         canvas.create_line(rx, ry, *end, fill="#103c60", width=3, arrow="last")
         canvas.create_text(18, 542, text="Blue: robot / heading   Green: goal   Orange: obstacle", fill="#d9e7ef", anchor="w")
 
-        occupancy = state.occupancy_grid()[0, 0].cpu().numpy()
         image = self.Image.fromarray(((1-occupancy)*255).astype("uint8")).resize((400, 400), self.Image.Resampling.NEAREST)
         self.map_photo = self.ImageTk.PhotoImage(image)
         canvas = self.grid
@@ -254,6 +271,17 @@ class NavigationViewer:
             canvas.create_oval(gx-4, gy-4, gx+4, gy+4, fill="#22c565", outline="")
         canvas.create_text(20, 495, text=f"White = clear, black = occupied | {state.cfg.occupancy_resolution:g} m / tile", fill="#d9e7ef", anchor="w")
         canvas.create_text(20, 519, text="Top = robot forward. Colored markers are display overlays.", fill="#d9e7ef", anchor="w")
+        if state.cfg.policy_input=='laser_sectors':
+            values=state.observations()['policy'][0].cpu().tolist()
+            canvas.delete('all')
+            canvas.create_text(20,18,text='ACTUAL POLICY INPUT: 36 LASER SECTORS',fill='#d9e7ef',anchor='w')
+            for i,value in enumerate(values[:36]):
+                x=20+i*11
+                canvas.create_rectangle(x,360-value*260,x+9,360,fill='#7ba6c2',outline='')
+            canvas.create_text(20,390,text='-180°       right       forward       left       +180°',fill='#d9e7ef',anchor='w')
+            canvas.create_text(20,420,text='Height = distance / 2.5 m. Zero = unknown/very close.',fill='#d9e7ef',anchor='w')
+            canvas.create_text(20,450,text=f'Goal distance {values[36]*4*math.sqrt(2):.2f} m | bearing {values[37]*180:+.1f}°',fill='#d9e7ef',anchor='w')
+            canvas.create_text(20,480,text=f'Previous action: {values[38]:+.2f}, {values[39]:+.2f}, {values[40]:+.2f}',fill='#d9e7ef',anchor='w')
         distance = float(torch.linalg.vector_norm(state.goal - state.xy))
         self.info.set(f"{self.session.status}  |  episode {self.session.episode_steps*state.cfg.dt:.1f} / {state.cfg.episode_seconds:g} s  |  goal {distance:.2f} m  |  return {self.session.episode_return:.2f}")
         velocity = state.velocity[0].cpu().tolist()
@@ -271,6 +299,7 @@ class NavigationViewer:
             "evaluation_obstacles": self.session.state.cfg.obstacle_count,
             "training_obstacles": self.session.training_cfg.obstacle_count,
             "obstacle_override": self.session.obstacle_override,
+            "challenge_overrides":self.session.scenario_overrides,
             "simulator_modules_loaded": any(name.split(".")[0] in {"isaaclab", "isaacsim", "pxr", "newton", "omni"} for name in sys.modules),
         }
         if self.report:
@@ -286,7 +315,9 @@ def main():
     default = Path(__file__).resolve().parents[2] / "logs/grid_empty_room/final.pt"
     parser.add_argument("--checkpoint", default=str(default) if default.exists() else None)
     parser.add_argument("--run-dir", default=None, help="Open the newest checkpoint from a training log directory")
+    parser.add_argument('--scenario-file',help='Explicit challenge scenario for a checkpoint, or scene for a manual playground')
     parser.add_argument("--follow", action="store_true", help="Automatically load new checkpoints from the same run")
+    parser.add_argument("--auto-reset", action="store_true", help="Automatically respawn after arrival, collision, or timeout")
     parser.add_argument("--obstacles", type=int, default=None,
                         help="Override obstacle count for viewer testing (0 to checkpoint max_obstacles)")
     parser.add_argument("--manual", action="store_true", help="Start in manual mode; still loads checkpoint settings")
@@ -302,13 +333,16 @@ def main():
     torch.set_num_threads(1)
     torch.manual_seed(args.seed)
     try:
-        session = NavigationPlayback(args.checkpoint, seed=args.seed, obstacle_count=args.obstacles)
+        overrides=json.loads(Path(args.scenario_file).read_text()) if args.scenario_file else None
+        checkpoint=None if args.manual and overrides is not None else args.checkpoint
+        session = NavigationPlayback(checkpoint, seed=args.seed, obstacle_count=args.obstacles,scenario_overrides=overrides)
     except ValueError as error:
         parser.error(str(error))
     if args.manual:
         session.mode = "manual"
     app = NavigationViewer(session, args.validate_frames, args.report, args.seed)
     app.watch.set(args.follow)
+    app.auto_reset.set(args.auto_reset)
     app.root.mainloop()
 
 

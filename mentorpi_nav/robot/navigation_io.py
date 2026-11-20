@@ -78,3 +78,15 @@ class NavigationIO(Node):
             'pose':base.tolist(),'scan_points':len(points),'pose_frame':'odom',
             'observation_source':'live_lidar','free_cells':int((~blocked).sum()),
             'min_scan_clearance':float(np.linalg.norm(points[:,:2],axis=1).min())}
+
+    def sector_observations(self,goal,previous_action):
+        from .laser_sectors import sector_observation
+        reasons=self.health()
+        if reasons:raise RuntimeError(','.join(reasons))
+        base,_=self.pose();points=self.scan_points()[:,:2]
+        if not len(points):raise RuntimeError('No valid LiDAR returns')
+        delta=np.asarray(goal)-base[:2];c,s=math.cos(base[2]),math.sin(base[2])
+        body_goal=[c*delta[0]+s*delta[1],-s*delta[0]+c*delta[1]]
+        state=sector_observation(points,body_goal,previous_action)
+        return state[None,:],{'pose':base.tolist(),'scan_points':len(points),'pose_frame':'odom',
+            'observation_source':'live_lidar_sectors','min_scan_clearance':float(np.linalg.norm(points,axis=1).min())}

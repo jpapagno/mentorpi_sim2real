@@ -8,7 +8,7 @@ if not exist "%PYTHONEXE%" (
     exit /b 1
 )
 pushd "%~dp0.."
-call "%ISAACSIM_ROOT%\python.bat" -m mentorpi_nav.cli.preview --mode smoke --num-envs 1 --viz kit --kit_args=--/app/vulkan=false %*
+call "%ISAACSIM_ROOT%\python.bat" -m mentorpi_nav.cli.preview --mode smoke --num-envs 1 --visualizer kit --kit_args=--/app/vulkan=false %*
 set "NAV_EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %NAV_EXIT_CODE%
