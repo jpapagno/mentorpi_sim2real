@@ -42,7 +42,9 @@ https://github.com/user-attachments/assets/e4f92932-6ad6-46e5-9340-1a3fcb0a9c69
 
 I took a step back. What would happen if I started with a navigation method that already worked? I adapted Reinis Cimurs's TD3 implementation. I split the scan into 36 angular sectors and kept the nearest valid return in each. With goal distance, goal bearing, and the previous action, that gave the policy 41 numbers per step. I adapted the actions so the MentorPi could strafe. On the same small room screening set, the first sector policy went from 9 of 40 goal arrivals at 400,000 training transitions to 40 of 40 at about 1.63 million. That gave me a reason to keep working with the simpler input. [Cimurs's reference implementation](https://github.com/reiniscimurs/DRL-robot-navigation) · [Policy interface](docs/planar.md#experimental-laser-sector-td3-policy)
 
-The floor exposed a different problem. Small commands could leave the robot visibly still. I measured how it got moving along each axis, used those measurements to model translation in the simulator, and set commanded yaw to zero for this experiment. Once I had a translation-only policy working in the small rooms, I continued training on a mix of open spaces, boxes, posts, rooms, and narrow doors. I wanted the policy to see a wider range of situations before trying the doorway again. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
+Turning was another thing I could simplify. In the floor tests, the second turn covered about 20 degrees when it repeated the first direction and about 10 degrees when it reversed, even with matching command speeds and durations. I took turning out of the policy by holding its yaw command at zero. It could still drive forward, backward, and sideways. [Turn measurements](docs/results.md#cord-clear-motion-pulses--november-16-2026)
+
+Small translation commands could also leave the robot visibly still. I measured how it got moving along each axis and used those measurements to model translation in the simulator. Once I had a translation-only policy working in the small rooms, I continued training on a mix of open spaces, boxes, posts, rooms, and narrow doors. I wanted the policy to see a wider range of situations before trying the doorway again. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
 
 I trained the **7.15M** policy with a custom PyTorch TD3 loop that stepped the simulator directly. At that checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true)
 
@@ -65,13 +67,13 @@ I set up a gap roughly twice the robot's width and put the 7.15M policy on the P
 
 **Goal arrival with cord contact.** [MP4](docs/media/deployment/2026-11-20/goal-with-cord-contact.mp4?raw=true)
 
-https://github.com/user-attachments/assets/47b30884-a82b-46e2-bd33-a2fb1ad7d25e
+https://github.com/user-attachments/assets/34d23935-7a27-4563-9363-037f720f3813
 
 I also recorded collisions and a hardware failure. I saw the robot keep moving after a connection interruption and don't know when the last command reached it. The seven recordings are exploratory takes, so I don't have a reliable doorway success rate yet. [Collision example](docs/media/deployment/2026-11-20/collision-1.mp4?raw=true) · [All seven takes](docs/results.md#doorway-replays-and-real-deployment--november-20-2026)
 
 **Back-and-forth failure.** [MP4](docs/media/deployment/2026-11-20/back-and-forth.mp4?raw=true)
 
-https://github.com/user-attachments/assets/09cf3be5-6e01-464d-9647-d0bd3770f158
+https://github.com/user-attachments/assets/f113e5d2-ff33-4411-a078-79d26c832737
 
 In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest. The next thing I want to see is the robot making the same doorway pass reliably.
 
