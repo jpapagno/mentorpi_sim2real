@@ -1,20 +1,30 @@
 # MentorPi Sim-to-Real Robotics
 
-I'm teaching a Hiwonder MentorPi M1 to reach a goal and avoid obstacles using its onboard LiDAR. I train the policy in simulation, then run it on the robot's Raspberry Pi to see where it carries over and where it breaks down.
+I'm using reinforcement learning to see how agile I can make a little mecanum robot. The first thing I wanted my Hiwonder MentorPi M1 to learn was how to reach a goal and avoid obstacles using the LiDAR it already had.
 
 ## Latest deployment · November 20, 2026
 
 https://github.com/user-attachments/assets/f4524c2c-7724-4369-8b3e-42cf83e94292
 
-The real MentorPi hesitates, then makes it through the cardboard doorway. Beside it, the same **7.15M TD3 checkpoint** drives through a generated doorway in the 2D simulator. The real footage plays at 2× and the simulated replay at 1×. [Full robot take at 1×](docs/media/deployment/2026-11-20/doorway-success.mp4?raw=true) · [Download the comparison](docs/media/simulation/2026-11-20/doorway-sim-to-real.mp4?raw=true)
+**Real robot, left.** I set the goal **1 metre straight ahead of the MentorPi's starting position**. It hesitated at the cardboard doorway, made it through, and reached that goal.
 
-## How the project evolved
+**Simulation, right.** The same **7.15M TD3 policy** reaches a separately placed goal. The green target is offset to the side beyond the simulated doorway, 0.86 m from the start.
 
-### 1. From Isaac Lab to the first real goal
+The real footage plays at 2× and the replay at 1×. [Full robot take at 1×](docs/media/deployment/2026-11-20/doorway-success.mp4?raw=true) · [Download the comparison](docs/media/simulation/2026-11-20/doorway-sim-to-real.mp4?raw=true)
 
-I brought the MentorPi URDF into Isaac Lab and started with a simple question. Could the robot learn to reach a position while avoiding obstacles? I trained an occupancy-grid policy with demonstrations, DAgger, and PPO. The Isaac demo showed the learned policy weaving through seven obstacles and reaching the goal in 14.15 simulated seconds. [Original Isaac demo](docs/media/mentorpi_goal_demo.mp4?raw=true)
+## How it started
 
-On the Pi, I built the grid from the current LiDAR scan and used LiDAR odometry with IMU-assisted orientation to measure progress. The robot got around a bottle and reached the goal in Trial 1. [All four original deployment recordings](docs/results.md#onboard-measurements-and-limitations)
+I wanted to try reinforcement learning on a real robot, and I chose Isaac Lab because I'd worked with it before. I imported the MentorPi URDF and built a scene out of simple shapes. Then I had to decide how much of the robot to simulate. A detailed model meant getting the colliders, joints, motor control, and contact between the mecanum rollers and floor right. I'd also have to run enough of those simulations to train on a laptop RTX 2060.
+
+![Isaac Lab viewport showing the MentorPi, cylindrical obstacles, and the green goal marker](docs/media/mentorpi-isaac-lab.png)
+
+I like to start small and iterate. For this first task, I needed the robot to move in a plane, see nearby obstacles, and register a collision when it hit one. The early Isaac demo already used analytic motion. I took that idea further and moved the training loop into a lightweight Python and PyTorch simulator that could raycast LiDAR and check collisions against the same 2D shapes. That let me focus on what the policy could learn from the scan. [Early Isaac Lab rollout](docs/media/mentorpi_goal_demo.mp4?raw=true) · [2D simulator](docs/planar.md)
+
+## The grid became another thing to get right
+
+My first idea was to turn each LiDAR scan into a 100 × 100 binary map around the robot. A ray cleared the cells it crossed, and hits and unseen areas stayed blocked. It sounded simple until I had to make the simulated grids look like the ones coming off the Pi. I tried randomizing the scan noise and dropped returns, and I still saw the robot get stuck. Each grid-building choice was another thing I had to get right before I could tell what the policy was struggling with. [Simulated and real LiDAR comparison](examples/lidar_sim2real_improvements/)
+
+An early grid policy got the real robot around a bottle and to its goal. The same deployed policy reached the goal in all 150 episodes in one fixed box-and-doorway layout and only 43 of 150 episodes in randomized rooms. After trying more training setups, including PPO with RSL-RL, I wanted to see how much of the preprocessing I could take out. [Original hardware recordings](docs/results.md#onboard-measurements-and-limitations) · [Mixed-shape results](docs/results.md#lightweight-2d-mixed-shape-baseline--november-15-2026)
 
 <details>
 <summary>Watch the original bottle run</summary>
@@ -23,26 +33,29 @@ https://github.com/user-attachments/assets/e4f92932-6ad6-46e5-9340-1a3fcb0a9c69
 
 </details>
 
-### 2. Build a simulator around the task
+## Borrowing a simpler baseline
 
-The first task needed fast rollouts of planar motion, LiDAR returns, and collisions. I moved training into a lightweight Python and PyTorch simulator and used the same rectangle and polygon geometry for raycasts and collision checks. I also compared simulated scans with a stationary real scan to see how occlusion and missing returns changed the grid. [LiDAR comparison](examples/lidar_sim2real_improvements/) · [2D simulator](docs/planar.md)
+I took a step back. What would happen if I started with a navigation method that already worked? I adapted Reinis Cimurs's TD3 implementation. I split the scan into 36 angular sectors and kept the nearest valid return in each. With goal distance, goal bearing, and the previous action, that gave the policy 41 numbers per step. I adapted the actions so the MentorPi could strafe. On the same small room screening set, the first sector policy went from 9 of 40 goal arrivals at 400,000 training transitions to 40 of 40 at about 1.63 million. That gave me a reason to keep working with the simpler input. [Cimurs's reference implementation](https://github.com/reiniscimurs/DRL-robot-navigation) · [Policy interface](docs/planar.md#experimental-laser-sector-td3-policy)
 
-The original deployed policy reached the goal in 150 of 150 simulated episodes in one fixed box-and-doorway layout, and in 43 of 150 episodes in randomized rooms. That gap made varied layouts a priority for the next training run. [Mixed-shape results](docs/results.md#lightweight-2d-mixed-shape-baseline--november-15-2026)
+The floor exposed a different problem. Small commands could leave the robot visibly still. I measured how it got moving along each axis, used those measurements to model translation in the simulator, and set commanded yaw to zero for this experiment. Once I had a translation-only policy working in the small rooms, I continued training on a mix of open spaces, boxes, posts, rooms, and narrow doors. I wanted the policy to see a wider range of situations before trying the doorway again. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
 
-### 3. Simplify what the policy sees and does
+At the **7.15M** checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true) · [Simulated timeout](docs/media/simulation/2026-11-20/doorway-timeout.mp4?raw=true)
 
-I adapted Reinis Cimurs's TD3 navigation implementation and replaced the grid with the nearest valid LiDAR return in each of 36 sectors. Adding goal distance, goal bearing, and the previous action gives the policy 41 inputs. I kept the MentorPi's ability to strafe and held commanded yaw at zero so I could focus on translation. [TD3 reference implementation](https://github.com/reiniscimurs/DRL-robot-navigation) · [Policy interface](docs/planar.md#experimental-laser-sector-td3-policy)
+<details>
+<summary>See the TD3 training curves</summary>
 
-On the floor, short commands could leave the robot visibly still. I measured how it started moving along each axis and used those measurements to model translation response. The next training run mixed open space, boxes, posts, rooms, and narrow doors. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
+![Simulated goal arrival rate and mean episode return over training for three TD3 runs](docs/media/td3-training-curves.png)
 
-### 4. Revisit the doorway in simulation and on the floor
+Each curve uses the latest 100 completed training episodes with exploration noise. The horizontal axis counts transitions within each run. The varied-layout run starts from an earlier checkpoint.
 
-I replayed the **7.15M** checkpoint in two freshly recorded simulated doorway runs. It reached the goal in **8.05 s** in one layout and timed out at **60 s** in the other. Both runs used the narrow-door scene family from training. [Simulated goal arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true) · [Simulated timeout](docs/media/simulation/2026-11-20/doorway-timeout.mp4?raw=true)
+</details>
 
-The November 20 hardware session produced the hesitant success above, a success with cord contact, three collision clips, a hardware failure, and a back-and-forth failure. My next milestone is repeatable passage through the same doorway. [Success with cord contact](docs/media/deployment/2026-11-20/goal-with-cord-contact.mp4?raw=true) · [Collision example](docs/media/deployment/2026-11-20/collision-1.mp4?raw=true) · [Back-and-forth failure](docs/media/deployment/2026-11-20/back-and-forth.mp4?raw=true) · [All seven takes and replay details](docs/results.md#doorway-replays-and-real-deployment--november-20-2026)
+## What happened on the floor
+
+I set up a gap roughly twice the robot's width and put the 7.15M policy on the Pi. The run at the top reached its goal after hesitating. Another success had cord contact. Other clips show collisions, a hardware failure, and a back-and-forth failure. I saw the robot keep moving after a connection interruption and don't know when the last command reached it. The seven recordings are exploratory takes, so I don't have a reliable doorway success rate yet. [Success with cord contact](docs/media/deployment/2026-11-20/goal-with-cord-contact.mp4?raw=true) · [Collision example](docs/media/deployment/2026-11-20/collision-1.mp4?raw=true) · [All seven takes](docs/results.md#doorway-replays-and-real-deployment--november-20-2026)
+
+In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest. The next thing I want to see is the robot making the same doorway pass reliably. [Back-and-forth failure](docs/media/deployment/2026-11-20/back-and-forth.mp4?raw=true)
 
 ## Explore the project
 
 [Simulation and training](docs/simulation.md) · [Robot deployment](docs/deployment.md) · [Results](docs/results.md) · [Task roadmap](docs/roadmap.md)
-
-Obstacle navigation is the first task. The roadmap covers changing surfaces, slip recovery, payload adaptation, moving obstacles, and pose-accurate docking.
