@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/8913a497-2345-4705-b66d-14d11ed62555
 
 I like to start small and iterate. For this first task, what mattered was how the real MentorPi moved in response to a drive command. I switched to a lightweight Python simulator so I could start with a simple model of that motion and refine it using measurements from the robot. Modeling exactly how each mecanum roller contacted the floor could wait.
 
-The early Isaac demo already used analytic motion. I kept that approach in Python and used the same 2D shapes for LiDAR raycasts and collision checks. [2D simulator](docs/planar.md)
+The early Isaac demo already used analytic motion. I kept that approach in a batched PyTorch simulator and added a Gymnasium interface for running one environment at a time. The simulator used the same 2D shapes for LiDAR raycasts and collision checks. [2D simulator](docs/planar.md)
 
 ## The grid became another thing to get right
 
@@ -44,7 +44,7 @@ I took a step back. What would happen if I started with a navigation method that
 
 The floor exposed a different problem. Small commands could leave the robot visibly still. I measured how it got moving along each axis, used those measurements to model translation in the simulator, and set commanded yaw to zero for this experiment. Once I had a translation-only policy working in the small rooms, I continued training on a mix of open spaces, boxes, posts, rooms, and narrow doors. I wanted the policy to see a wider range of situations before trying the doorway again. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
 
-At the **7.15M** checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true)
+I trained the **7.15M** policy with a custom PyTorch TD3 loop that stepped the simulator directly. At that checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true)
 
 **Simulated doorway timeout.** The replay shows all 60 simulated seconds at 4× speed. [MP4](docs/media/simulation/2026-11-20/doorway-timeout.mp4?raw=true)
 
