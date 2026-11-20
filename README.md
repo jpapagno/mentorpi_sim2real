@@ -75,8 +75,16 @@ I also recorded collisions and a hardware failure. I saw the robot keep moving a
 
 https://github.com/user-attachments/assets/f113e5d2-ff33-4411-a078-79d26c832737
 
-In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest. The next thing I want to see is the robot making the same doorway pass reliably.
+In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest.
 
 ## Explore the project
 
 [Simulation and training](docs/simulation.md) · [Robot deployment](docs/deployment.md) · [Results](docs/results.md) · [Task roadmap](docs/roadmap.md)
+
+## Next steps
+
+1. **Make the doorway run repeatable.** Mark the robot's starting pose and one-metre goal, fix the gap width, and run the same setup in simulation and on the floor. Record clean arrivals, arrivals with contact, collisions, and stops.
+2. **Find out why it gets stuck.** Log the policy's commands and measured motion together. Test steady diagonal commands from rest to see whether the chassis moves, then compare those trials with runs where the policy keeps reversing.
+3. **Measure what happens when the connection drops.** With the wheels off the floor, interrupt the connection and measure how long it takes the motors to stop after the last command reaches the Pi.
+4. **Bring back turning in small steps.** Check the yaw model on fresh repeated and reversed turns, then compare a policy that can turn with the translation-only policy on the same courses.
+5. **Make the course harder.** Once the original doorway is repeatable, try offset starts and narrower gaps, then work toward parking and docking with a target heading.
