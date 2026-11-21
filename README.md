@@ -73,7 +73,13 @@ On the left, the real back-and-forth doorway attempt plays at 3×. On the right,
 
 https://github.com/user-attachments/assets/3184d28c-10c8-4d83-82c2-9c3c2c8fa96d
 
-In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest.
+#### Why might the policy stall?
+
+Over 60 seconds the simulated robot covered about 3.8 m along its back-and-forth path. It stayed on the starting side of the doorway and finished just 15 cm closer to the goal.
+
+One possibility is how I tuned the TD3 reward. Arrival earns +100, collision costs 100, and the time limit ends the rollout with the usual step reward. The policy earns a little for moving toward the goal and pays a cost for getting close to an obstacle. A sideways move to line up with the gap can earn little immediate reward. If the policy expects a collision when it tries to pass through, small corrections near the entrance may look like the better bet. [TD3 reward and timeout handling](docs/planar.md#experimental-laser-sector-td3-policy)
+
+On the real robot, reversing commands produced about 2 mm of net motion in one logged run before the controller disarmed. I've also seen a steady diagonal command barely move the chassis from rest. That gives me another possibility to test on hardware alongside the reward hypothesis.
 
 ## Explore the project
 
@@ -82,7 +88,7 @@ In one logged run, the policy kept reversing its commands while LiDAR odometry m
 ## Next steps
 
 1. **Make the doorway run repeatable.** Mark the robot's starting pose and one-metre goal, fix the gap width, and run the same setup in simulation and on the floor. Record clean arrivals, arrivals with contact, collisions, and stops.
-2. **Find out why it gets stuck.** Log the policy's commands and measured motion together. Test steady diagonal commands from rest to see whether the chassis moves, then compare those trials with runs where the policy keeps reversing.
+2. **Find out why it gets stuck.** In simulation, train a variant with a small per-step time cost and compare stalls, arrivals, and collisions on the same doorway layouts. On hardware, compare steady diagonal commands from rest with the policy's reversals using commanded and measured motion.
 3. **Measure what happens when the connection drops.** With the wheels off the floor, interrupt the connection and measure how long it takes the motors to stop after the last command reaches the Pi.
 4. **Bring back turning in small steps.** Check the yaw model on fresh repeated and reversed turns, then compare a policy that can turn with the translation-only policy on the same courses.
 5. **Make the course harder.** Once the original doorway is repeatable, try offset starts and narrower gaps, then work toward parking and docking with a target heading.
