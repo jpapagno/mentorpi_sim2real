@@ -46,11 +46,7 @@ Turning was another thing I could simplify. In the floor tests, the second turn 
 
 Small translation commands could also leave the robot visibly still. I measured how it got moving along each axis and used those measurements to model translation in the simulator. Once I had a translation-only policy working in the small rooms, I continued training on a mix of open spaces, boxes, posts, rooms, and narrow doors. I wanted the policy to see a wider range of situations before trying the doorway again. [Motion calibration](docs/calibration.md) · [Training scenario](scenarios/lidar_translation_varied_forever.json)
 
-I trained the **7.15M** policy with a custom PyTorch TD3 loop that stepped the simulator directly. At that checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true)
-
-**Simulated doorway timeout.** The replay shows all 60 simulated seconds at 4× speed. [MP4](docs/media/simulation/2026-11-20/doorway-timeout.mp4?raw=true)
-
-https://github.com/user-attachments/assets/1423a459-b742-45c5-9b75-7f05a563b230
+I trained the **7.15M** policy with a custom PyTorch TD3 loop that stepped the simulator directly. At that checkpoint, the latest 100 simulated training episodes had 92 goal arrivals, 5 collisions, and 3 timeouts, with a mean return of 92.76. I also replayed that checkpoint without exploration noise in two new doorway layouts. It reached the goal in 8.05 seconds in one and timed out in the other. [Simulated arrival](docs/media/simulation/2026-11-20/doorway-goal.mp4?raw=true) · [Doorway failures side by side](#doorway-failures-side-by-side)
 
 <details>
 <summary>See the TD3 training curves</summary>
@@ -71,9 +67,11 @@ https://github.com/user-attachments/assets/34d23935-7a27-4563-9363-037f720f3813
 
 I also recorded collisions and a hardware failure. I saw the robot keep moving after a connection interruption and don't know when the last command reached it. The seven recordings are exploratory takes, so I don't have a reliable doorway success rate yet. [Collision example](docs/media/deployment/2026-11-20/collision-1.mp4?raw=true) · [All seven takes](docs/results.md#doorway-replays-and-real-deployment--november-20-2026)
 
-**Back-and-forth failure.** [MP4](docs/media/deployment/2026-11-20/back-and-forth.mp4?raw=true)
+### Doorway failures side by side
 
-https://github.com/user-attachments/assets/f113e5d2-ff33-4411-a078-79d26c832737
+On the left, the real back-and-forth doorway attempt plays at 3×. On the right, the simulated run times out after 60 simulated seconds, shown at 4×. [Full real take at 1×](docs/media/deployment/2026-11-20/back-and-forth.mp4?raw=true) · [Simulation replay](docs/media/simulation/2026-11-20/doorway-timeout.mp4?raw=true) · [Download the comparison](docs/media/simulation/2026-11-20/doorway-timeout-comparison.mp4?raw=true)
+
+https://github.com/user-attachments/assets/3184d28c-10c8-4d83-82c2-9c3c2c8fa96d
 
 In one logged run, the policy kept reversing its commands while LiDAR odometry measured about 2 mm of net travel. I wonder if, in a tight spot, the reward makes it easier for the policy to wait out the episode than risk a collision. I've also seen a steady diagonal command barely move the chassis from rest.
 
