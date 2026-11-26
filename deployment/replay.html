@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MentorPi episode replay</title>
+<style>
+  body { font: 15px system-ui, sans-serif; color: #e7edf8; background: #101723; margin: 1.5rem auto; padding: 0 1rem; max-width: 1050px; }
+  h1 { font-size: 1.5rem; } button, input { font: inherit; } button { padding: .35rem .8rem; }
+  .controls { display: flex; gap: .8rem; align-items: center; margin: 1rem 0; }
+  [hidden] { display: none; }
+  #frame { flex: 1; } main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; }
+  canvas { width: 100%; background: #182334; border-radius: .4rem; } pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  small { line-height: 1.8; } .scan { color: #55dff3; } .actor { color: #fbb96b; } .path { color: #a8a2ff; } .goal { color: #87ed9e; }
+  @media (max-width: 700px) { main { display: block; } }
+</style>
+<h1>MentorPi episode replay</h1>
+<div class="controls" id="library" hidden>
+  <label>Saved episode <select id="episodes"></select></label>
+  <button type="button" id="refresh">Refresh</button>
+</div>
+<label>Episode JSON <input id="file" type="file" accept=".json,application/json"></label>
+<p id="status" role="status">Open a recording from the deployment diagnostics folder.</p>
+<div class="controls">
+  <button type="button" id="play" disabled>Play</button>
+  <input id="frame" type="range" min="0" max="0" value="0" aria-label="Episode frame" disabled>
+  <output id="time">0.00 s</output>
+</div>
+<main>
+  <div>
+    <canvas id="map" width="620" height="620" aria-label="Overhead view with the initial forward direction up"></canvas>
+    <small><span class="scan">LiDAR hits</span> · <span class="actor">Actor ray hits</span> ·
+      <span class="path">Robot path</span> · <span class="goal">Goal</span> · Initial forward is up. Grid is 1 m.</small>
+  </div>
+  <div><h2>Frame data</h2><pre id="values"></pre></div>
+</main>
+<script>
+  const ui = Object.fromEntries(["file", "status", "play", "frame", "time", "map", "values",
+    "library", "episodes", "refresh"]
+    .map(id => [id, document.getElementById(id)]));
+  const ctx = ui.map.getContext("2d");
+  let episode, positions, goal, plotCenter, scale, playback;
+  const rotate = ([x, y], yaw) => [
+    Math.cos(yaw) * x - Math.sin(yaw) * y, Math.sin(yaw) * x + Math.cos(yaw) * y
+  ];
+  const screen = ([x, y]) => [310 - (y - plotCenter[1]) * scale, 310 - (x - plotCenter[0]) * scale];
+  function line(a, b, color, width = 1) {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.moveTo(...screen(a)); ctx.lineTo(...screen(b)); ctx.stroke();
+  }
+  function dot(p, color, radius) {
+    ctx.beginPath(); ctx.fillStyle = color;
+    ctx.arc(...screen(p), radius, 0, Math.PI * 2); ctx.fill();
+  }
+  function draw() {
+    const index = Number(ui.frame.value);
+    const row = episode.trace[index];
+    const position = positions[index];
+    const yaw = row.pose[2] - episode.start[2];
+    const lidar = row.observation?.slice(8);
+    const scan = episode.scans?.[row.scan_index];
+    ui.time.value = row.elapsed_s.toFixed(2) + " s";
+    ctx.clearRect(0, 0, 620, 620);
+    const half = 310 / scale;
+    for (let x = Math.ceil(plotCenter[0] - half); x <= plotCenter[0] + half; x++)
+      line([x, plotCenter[1] - half], [x, plotCenter[1] + half], "#30425a");
+    for (let y = Math.ceil(plotCenter[1] - half); y <= plotCenter[1] + half; y++)
+      line([plotCenter[0] - half, y], [plotCenter[0] + half, y], "#30425a");
+    for (const point of scan?.body_points_m ?? []) {
+      const [x, y] = rotate(point, yaw);
+      dot([position[0] + x, position[1] + y], "#55dff3", 2);
+    }
+    for (const [bin, range] of (lidar ?? []).entries()) {
+      if (range >= 3) continue;
+      const angle = (bin * 5 - 180) * Math.PI / 180;
+      const end = [position[0] + Math.cos(angle) * range, position[1] + Math.sin(angle) * range];
+      line(position, end, "#c69055"); dot(end, "#fbb96b", 3);
+    }
+    for (let i = 1; i <= index; i++) line(positions[i - 1], positions[i], "#a8a2ff", 2);
+    dot(goal, "#87ed9e", 6);
+    dot(position, "#e7edf8", 6);
+    line(position, [position[0] + .23 * Math.cos(yaw), position[1] + .23 * Math.sin(yaw)], "#e7edf8", 2);
+    const format = values => values?.map(x => x.toFixed(3)).join(", ") ?? "unrecorded";
+    ui.values.textContent = [
+      "Frame " + (index + 1) + " / " + episode.trace.length,
+      "Position XYZ       " + format(row.observation?.slice(0, 3)),
+      "Velocity XYZ       " + format(row.observation?.slice(3, 6)),
+      "Goal offset XY     " + format(row.observation?.slice(6, 8)),
+      "Raw actor output   " + format(row.actor_output),
+      "Clipped action     " + format(row.policy_action),
+      "Requested body     " + format(row.requested_velocity),
+      "Applied body       " + format(row.guard?.applied),
+      "Guard              " + (row.guard?.blocked_by?.join(", ") || "clear"),
+      "", "Actor ranges by angle (m)",
+      lidar?.map((range, i) => String(i * 5 - 180).padStart(4) + "°  " + range.toFixed(3)).join("\n") ?? "unrecorded"
+    ].join("\n");
+  }
+  function pause() {
+    clearTimeout(playback); playback = undefined; ui.play.textContent = "Play";
+  }
+  function advance() {
+    const index = Number(ui.frame.value);
+    if (index >= episode.trace.length - 1) { pause(); return; }
+    const delay = (episode.trace[index + 1].elapsed_s - episode.trace[index].elapsed_s) * 1000;
+    playback = setTimeout(() => { ui.frame.value = index + 1; draw(); advance(); }, delay);
+  }
+  ui.play.onclick = () => {
+    if (playback !== undefined) { pause(); return; }
+    if (ui.frame.value === ui.frame.max) { ui.frame.value = 0; draw(); }
+    ui.play.textContent = "Pause"; advance();
+  };
+  ui.frame.oninput = () => { pause(); draw(); };
+  let loadRequest = 0;
+  async function loadEpisode(read) {
+    const request = ++loadRequest;
+    pause();
+    ui.frame.disabled = ui.play.disabled = true;
+    ctx.clearRect(0, 0, 620, 620);
+    ui.values.textContent = "";
+    try {
+      const data = await read();
+      if (request !== loadRequest) return;
+      episode = data;
+      if (!episode.trace?.length || !episode.start || !episode.goal) throw Error("No control frames in this recording.");
+      const local = p => rotate([p[0] - episode.start[0], p[1] - episode.start[1]], -episode.start[2]);
+      positions = episode.trace.map(row => local(row.pose));
+      goal = local(episode.goal);
+      const extents = [0, 1].map(axis => positions.reduce(([lo, hi], p) =>
+        [Math.min(lo, p[axis]), Math.max(hi, p[axis])], [Math.min(0, goal[axis]), Math.max(0, goal[axis])]));
+      plotCenter = extents.map(([lo, hi]) => (lo + hi) / 2);
+      scale = 600 / (6 + Math.max(...extents.map(([lo, hi]) => hi - lo)));
+      ui.status.textContent = (episode.policy ?? "Policy") + " · " + (episode.stop_reason ?? "unknown stop")
+        + (episode.scans ? "" : " · Older trace with no recorded LiDAR inputs");
+      ui.frame.max = episode.trace.length - 1; ui.frame.value = 0;
+      ui.frame.disabled = ui.play.disabled = false;
+      draw();
+    } catch (error) {
+      if (request === loadRequest) ui.status.textContent = error.message;
+    }
+  }
+  ui.file.onchange = () => {
+    const file = ui.file.files[0];
+    if (!file) return;
+    ui.episodes.value = "";
+    loadEpisode(async () => JSON.parse(await file.text()));
+  };
+  async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw Error("Could not load the recording.");
+    return response.json();
+  }
+  function selectEpisode() {
+    const name = ui.episodes.value;
+    if (!name) return;
+    ui.file.value = "";
+    loadEpisode(() => fetchJson("/episodes/" + encodeURIComponent(name)));
+  }
+  async function refreshLibrary() {
+    try {
+      const names = await fetchJson("/episodes");
+      ui.episodes.replaceChildren(new Option("Select an episode", ""), ...names.map(name => {
+        const date = name.match(/policy-(\d{8})T(\d{6})/);
+        const label = date ? date[1].replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3") + " "
+          + date[2].replace(/(\d{2})(\d{2})(\d{2})/, "$1:$2:$3") + " UTC" : name;
+        return new Option(label, name);
+      }));
+      ui.episodes.value = names[0] ?? "";
+      if (names.length) selectEpisode();
+      else ui.status.textContent = "No local recordings yet. Copy an episode into diagnostics, then refresh.";
+    } catch (error) { ui.status.textContent = error.message; }
+  }
+  if (location.protocol === "http:") {
+    ui.library.hidden = false;
+    ui.episodes.onchange = selectEpisode;
+    ui.refresh.onclick = refreshLibrary;
+    refreshLibrary();
+  }
+</script>
+</html>
