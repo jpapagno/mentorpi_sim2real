@@ -1,6 +1,10 @@
 # MentorPi Isaac Lab
 
-Train a PPO navigation policy in Isaac Lab with Newton, then run it on a Hiwonder MentorPi M1. The policy learns to steer around obstacles and reach a goal using LiDAR and robot state.
+We trained a PPO navigation policy entirely in Isaac Lab using Newton physics, then deployed it to a physical Hiwonder MentorPi M1. In this run, the robot used LiDAR and onboard state estimates to steer around obstacles and reach its goal.
+
+![MentorPi navigating around obstacles and reaching its goal in a real-world trial](videos/day-2-real-world-navigation-success.gif)
+
+[Watch the full real-world recording](videos/day-2-real-world-navigation-success.mp4)
 
 This project is open to collaboration. Open an issue or pull request with simulation improvements, training results, or hardware tests.
 
