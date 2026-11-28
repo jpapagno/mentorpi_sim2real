@@ -20,6 +20,10 @@ outputs/
 !/videos/d1_col_4.mp4
 !/videos/iteration-2-sim-velocity-limit-hesitation.mp4
 !/videos/iteration-2-sim-velocity-limit-hesitation.gif
+!/videos/iteration-3-sim-progress-reward.gif
+!/videos/iteration-3-sim-progress-reward.mp4
+!/videos/iteration-4-sim-obstacle-clearance.gif
+!/videos/iteration-4-sim-obstacle-clearance.mp4
 !/videos/training-performance-comparison.png
 !/videos/mentorpi-m1.jpg
 /old/

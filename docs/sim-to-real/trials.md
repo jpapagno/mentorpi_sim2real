@@ -4,6 +4,8 @@
 
 ## **Training and experimentation**
 
+Each simulation recording shows two environments for 40 seconds at the same camera angle. For these replays, episode timeouts are 10 seconds, or 20 seconds for the reduced-speed policy, to show fresh attempts within the clip.
+
 ### **Iteration #1 — Training the initial policy**
 
 As I created the first setup for this project, I iterated on the reward functions until the simulation trained a good policy.
@@ -83,9 +85,11 @@ I doubled the weight of the progress reward from 1.0 to 2.0.
 | `reached_goal`     | 60.0            | 60.0       |
 | `failure`          | −120.0          | −120.0     |
 
-> TODO: GET VIDEO WITH THIS POLICY
-
 Checkpoint: [`model_2150.pt`](../../checkpoints/progress-reward/model_2150.pt) · [Description and playback](../../checkpoints/progress-reward/README.md).
+
+![Two environments replaying the Iteration 3 progress-reward policy](../../videos/iteration-3-sim-progress-reward.gif)
+
+[Full recording](../../videos/iteration-3-sim-progress-reward.mp4)
 
 Great! The simulated robot was once again reaching the goal after training.
 
@@ -163,7 +167,9 @@ $$
 
 This increases the cost of being farther away from the goal while bounding its maximum value.
 
-> TODO: Insert video of the final simulated policy successfully navigating around obstacles.
+![Two environments replaying the final obstacle-clearance policy, model 6450](../../videos/iteration-4-sim-obstacle-clearance.gif)
+
+[Full recording](../../videos/iteration-4-sim-obstacle-clearance.mp4)
 
 This worked! The policy learned to navigate around obstacles and reach the goal while operating under the reduced velocity constraints.
 
