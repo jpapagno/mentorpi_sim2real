@@ -21,7 +21,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 MENTORPI_RECT_CFG = RigidObjectCfg(
     spawn=sim_utils.CuboidCfg(
-        size=(0.25, 0.18, 0.08),
+        size=(0.3, 0.2, 0.15),
         rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
         collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
         mass_props=[sim_utils.MassCfg(mass=1.0)],
@@ -31,7 +31,7 @@ MENTORPI_RECT_CFG = RigidObjectCfg(
 )
 
 MENTORPI_LIDAR_CFG = MultiMeshRayCasterCfg(
-    offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.06)),
+    offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.15)),
     ray_alignment="yaw",
     pattern_cfg=LidarPatternCfg(
         channels=1,

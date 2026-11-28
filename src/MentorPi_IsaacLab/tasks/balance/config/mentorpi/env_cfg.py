@@ -10,7 +10,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnvCfg, mdp
-from isaaclab.managers import ActionTerm, ActionTermCfg
+from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -179,7 +179,8 @@ class PlanarVelocityAction(ActionTerm):
                 print(f"Raw XY actions (m/s) min={actions.amin(dim=0).tolist()}, max={actions.amax(dim=0).tolist()}")
         self._raw_actions.copy_(actions)
         # The simulated robot holds its spawn heading, so policy and body XY are aligned.
-        self._processed_actions.copy_(actions.clamp(-self.cfg.speed_limit, self.cfg.speed_limit))
+        velocity = actions * self.cfg.speed_scale
+        self._processed_actions.copy_(velocity.clamp(-self.cfg.speed_limit, self.cfg.speed_limit))
 
     def apply_actions(self):
         pose = self._asset.data.root_link_pose_w.torch.clone()
@@ -201,6 +202,7 @@ class PlanarVelocityAction(ActionTerm):
 class PlanarVelocityActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = PlanarVelocityAction
     speed_limit: float = 0.6
+    speed_scale: float = 1.0
     check_action_bounds: bool = False
 
 
@@ -411,3 +413,53 @@ class BalanceEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         # Isaac Lab's task loader resolves the preset to a backend config.
         self.sim.physics = MotionPhysicsCfg()  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def reset_iteration2_goal(env: ManagerBasedEnv, env_ids: torch.Tensor | slice) -> None:
+    """Place the goal beyond a randomly selected side of the robot."""
+    positions = goal_positions_w(env)
+    sides = positions.new_tensor(((1, 0), (0, 1), (-1, 0), (0, -1)))
+    origins_xy = env.scene.env_origins[env_ids, :2]
+    side = torch.randint(len(sides), (origins_xy.shape[0],), device=positions.device)
+    positions[env_ids, :2] = origins_xy + 1.5 * sides[side]
+    cast(VisualizationMarkers, env.scene["goal"]).visualize(translations=positions)
+
+
+def iteration2_obstacle_reset(name: str) -> EventTerm:
+    return EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg(name),
+            "pose_range": {"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+            "velocity_range": {},
+        },
+    )
+
+
+@configclass
+class Iteration2EventsCfg:
+    reset_scene = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    randomize_obstacle_east = iteration2_obstacle_reset("obstacle_east")
+    randomize_obstacle_north = iteration2_obstacle_reset("obstacle_north")
+    randomize_obstacle_west = iteration2_obstacle_reset("obstacle_west")
+    randomize_goal = EventTerm(func=reset_iteration2_goal, mode="reset")
+
+
+@configclass
+class Iteration2EnvCfg(BalanceEnvCfg):
+    """Playback environment reconstructed from the first reduced-speed run."""
+
+    events: Iteration2EventsCfg = Iteration2EventsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        for obstacle in (self.scene.obstacle_east, self.scene.obstacle_north, self.scene.obstacle_west):
+            obstacle.spawn.size = (0.35, 0.35, 0.2)
+            x, y, _ = obstacle.init_state.pos
+            obstacle.init_state.pos = (x, y, 0.1)
+        self.scene.lidar.offset.pos = (0.0, 0.0, 0.06)
+        self.actions.planar_velocity.speed_scale = 0.1
+        self.actions.planar_velocity.speed_limit = 0.1
+        self.rewards.progress.weight = 1.0
+        self.rewards.obstacle_clearance = None

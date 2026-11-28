@@ -9,7 +9,20 @@ dist/
 
 logs/
 outputs/
-videos/
+/videos/*
+!/videos/day-2-real-world-navigation-success.mp4
+!/videos/day-2-real-world-navigation-success.gif
+!/videos/iteration-1-sim-navigation-success.mp4
+!/videos/iteration-1-sim-navigation-success.gif
+!/videos/day-1-real-world-collision.mov
+!/videos/day-1-real-world-collision.gif
+!/videos/d1_col_4.gif
+!/videos/d1_col_4.mp4
+!/videos/iteration-2-sim-velocity-limit-hesitation.mp4
+!/videos/iteration-2-sim-velocity-limit-hesitation.gif
+!/videos/training-performance-comparison.png
+!/videos/mentorpi-m1.jpg
+/old/
 wandb/
 
 /mentorpi_sim2real/

@@ -45,3 +45,12 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class Deployment1PlayRunnerCfg(PPORunnerCfg):
+    """Load the original Gaussian actor in the current MentorPi environment."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.actor.distribution_cfg = RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0)
