@@ -6,7 +6,11 @@ We trained a PPO navigation policy entirely in Isaac Lab using Newton physics, t
 
 [Watch the full real-world recording](videos/day-2-real-world-navigation-success.mp4)
 
-[Training and hardware trials](docs/sim-to-real/trials.md) · [Sim-to-real policy](docs/sim-to-real/policy.md) · [Simulation vs. real-world comparison](docs/sim-to-real/policy.md#simulation-vs-real-world)
+Getting to this run took a few tries. The first policy worked in simulation, but when I put it on the real robot, it kept hitting obstacles. [See what went wrong and what I changed](docs/sim-to-real/trials.md#iteration-1--training-the-initial-policy).
+
+Curious how I set up the simulation? [See how the LiDAR, robot state, and velocity control compare with the real MentorPi](docs/sim-to-real/policy.md#simulation-vs-real-world).
+
+[Training and hardware trials](docs/sim-to-real/trials.md) · [Sim-to-real policy](docs/sim-to-real/policy.md)
 
 This project is open to collaboration. Open an issue or pull request with simulation improvements, training results, or hardware tests.
 
