@@ -6,6 +6,8 @@ We trained a PPO navigation policy entirely in Isaac Lab using Newton physics, t
 
 [Watch the full real-world recording](videos/day-2-real-world-navigation-success.mp4)
 
+[Training and hardware trials](docs/sim-to-real/trials.md) · [Sim-to-real policy](docs/sim-to-real/policy.md) · [Simulation vs. real-world comparison](docs/sim-to-real/policy.md#simulation-vs-real-world)
+
 This project is open to collaboration. Open an issue or pull request with simulation improvements, training results, or hardware tests.
 
 ## Install
@@ -40,8 +42,6 @@ uv run --extra video isaaclab play --rl_library rsl_rl --task MentorpiIsaaclab-B
 
 Checkpoints are saved under `logs/rsl_rl/mentorpi_motion/`. The recording goes in `videos/play/` inside the checkpoint's run directory. To replay a specific checkpoint, replace `latest` with its `model_*.pt` path.
 
-## Project docs
+## Hardware deployment
 
-- [Sim-to-real policy](docs/sim-to-real/policy.md)
-- [Training and hardware trials](docs/sim-to-real/trials.md)
-- [MentorPi deployment guide](deployment/README.md)
+[MentorPi deployment guide](deployment/README.md)
